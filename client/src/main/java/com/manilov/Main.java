@@ -29,9 +29,9 @@ public class Main {
         };
 
         long initialDelay = 0;
-        long period = 500;
+        long period = 5000;
 
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < 3; i++) {
             executorService.scheduleAtFixedRate(task, initialDelay, period, TimeUnit.MILLISECONDS);
         }
     }
