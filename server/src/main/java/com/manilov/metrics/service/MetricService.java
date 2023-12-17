@@ -39,4 +39,9 @@ public class MetricService {
         }
         return (double) sumSize / countSize;
     }
+
+    public double getAvgThroughput() {
+        //return this.getAvgSize() / (this.getAvgDelay() * 1000);
+        return this.getAvgSize() / this.getAvgDelay();
+    }
 }

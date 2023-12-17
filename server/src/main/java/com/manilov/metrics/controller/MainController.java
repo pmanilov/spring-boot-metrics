@@ -1,7 +1,6 @@
 package com.manilov.metrics.controller;
 
 import com.manilov.metrics.service.MetricService;
-import jakarta.servlet.http.HttpServletRequest;
 import org.pcap4j.core.*;
 import org.pcap4j.packet.Packet;
 import org.pcap4j.packet.TcpPacket;
@@ -57,7 +56,7 @@ public class MainController {
 
     @PostMapping("/")
     @ResponseStatus(HttpStatus.OK)
-    public void handleTime(@RequestParam("time") long clientTime, @RequestBody String body, HttpServletRequest request){
+    public void handleTime(@RequestParam("time") long clientTime){
         metricService.updateDelay(clientTime);
     }
 }
