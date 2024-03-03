@@ -1,6 +1,7 @@
 package com.manilov.metrics.controller;
 
 import com.manilov.metrics.service.MetricService;
+import lombok.extern.slf4j.Slf4j;
 import org.pcap4j.core.*;
 import org.pcap4j.packet.Packet;
 import org.pcap4j.packet.TcpPacket;
@@ -13,6 +14,7 @@ import java.io.EOFException;
 import java.util.concurrent.TimeoutException;
 
 @Controller
+@Slf4j
 public class MainController {
 
     @Autowired
@@ -40,23 +42,25 @@ public class MainController {
                 if (packet.contains(TcpPacket.class)) {
                     TcpPacket tcpPacket = packet.get(TcpPacket.class);
                     if (tcpPacket.getHeader().getDstPort().valueAsInt() == 8080) {
-                        if(tcpPacket.getPayload() != null) {
+                        if (tcpPacket.getPayload() != null) {
                             byte[] httpPayload = tcpPacket.getRawData();
-                            String httpContent = new String(httpPayload);
+                            //String httpContent = new String(httpPayload);
                             int totalPacketSize = httpPayload.length;
                             metricService.updateSize(totalPacketSize);
                         }
                     }
                 }
             } catch (PcapNativeException | NotOpenException | EOFException | TimeoutException e) {
-                System.err.println(e.getMessage());
+                if (e.getMessage() != null) {
+                    log.error(e.getMessage());
+                }
             }
         }
     }
 
     @PostMapping("/")
     @ResponseStatus(HttpStatus.OK)
-    public void handleTime(@RequestParam("time") long clientTime){
+    public void handleTime(@RequestParam("time") long clientTime) {
         metricService.updateDelay(clientTime);
     }
 }
