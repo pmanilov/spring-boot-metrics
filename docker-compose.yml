@@ -1,17 +1,36 @@
 version: '3'
 services:
+  mosquitto:
+    image: eclipse-mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/:/mosquitto/config
+    networks:
+      - mosquitto
+
   metrics-server-http:
     build:
       context: .
       dockerfile: http.Dockerfile
     ports:
       - "8080:8080"
+    cap_add:
+      - NET_ADMIN
+    network_mode: "host"
+
   metrics-server-mqtt:
     build:
       context: .
       dockerfile: mqtt.Dockerfile
     ports:
       - "8081:8081"
+    networks:
+      - mosquitto
+    depends_on:
+      - mosquitto
+    cap_add:
+      - NET_ADMIN
 
   prometheus:
     image: prom/prometheus
@@ -24,3 +43,6 @@ services:
     image: grafana/grafana
     ports:
       - "3000:3000"
+networks:
+  mosquitto:
+    driver: bridge

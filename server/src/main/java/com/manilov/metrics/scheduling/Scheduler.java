@@ -21,9 +21,9 @@ public class Scheduler {
     private final MutableDouble avgSize;
 
     public Scheduler(MeterRegistry meterRegistry) {
-        avgThroughput = meterRegistry.gauge("avg_throughput_http", new MutableDouble(0));
-        avgDelay = meterRegistry.gauge("avg_delay_http", new MutableDouble(0));
-        avgSize = meterRegistry.gauge("avg_packet_size_http", new MutableDouble(0));
+        avgThroughput = meterRegistry.gauge("avg_throughput", new MutableDouble(0));
+        avgDelay = meterRegistry.gauge("avg_delay", new MutableDouble(0));
+        avgSize = meterRegistry.gauge("avg_packet_size", new MutableDouble(0));
     }
 
     @Scheduled(fixedDelay = 500, initialDelay = 500)

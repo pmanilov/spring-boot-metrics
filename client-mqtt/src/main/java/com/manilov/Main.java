@@ -37,7 +37,7 @@ public class Main {
                         System.out.println("Message published: " + message);
                         Random random = new Random();
 
-                        TimeUnit.SECONDS.sleep(random.nextInt(5) + 3);
+                        TimeUnit.SECONDS.sleep(5);
                     }
                 } catch (InterruptedException | MqttException e) {
                     System.err.println(e.getMessage());

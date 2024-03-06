@@ -23,7 +23,7 @@ public class MainHandler {
 
     public MainHandler() {
         try {
-            PcapNetworkInterface networkInterface = Pcaps.getDevByName("lo");
+            PcapNetworkInterface networkInterface = Pcaps.getDevByName("any");
             int snapshotLength = 65536;
             handle = networkInterface.openLive(snapshotLength, PcapNetworkInterface.PromiscuousMode.PROMISCUOUS, 10);
             Runnable captureTask = this::startCapture;

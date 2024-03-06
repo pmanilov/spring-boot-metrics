@@ -24,7 +24,7 @@ public class MainController {
 
     public MainController() {
         try {
-            PcapNetworkInterface networkInterface = Pcaps.getDevByName("lo");
+            PcapNetworkInterface networkInterface = Pcaps.getDevByName("any");
             int snapshotLength = 65536;
             handle = networkInterface.openLive(snapshotLength, PcapNetworkInterface.PromiscuousMode.PROMISCUOUS, 10);
             Runnable captureTask = this::startCapture;
@@ -43,7 +43,7 @@ public class MainController {
                     TcpPacket tcpPacket = packet.get(TcpPacket.class);
                     if (tcpPacket.getHeader().getDstPort().valueAsInt() == 8080) {
                         if (tcpPacket.getPayload() != null) {
-                            byte[] httpPayload = tcpPacket.getRawData();
+                            byte[] httpPayload = tcpPacket.getPayload().getRawData();
                             //String httpContent = new String(httpPayload);
                             int totalPacketSize = httpPayload.length;
                             metricService.updateSize(totalPacketSize);

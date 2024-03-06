@@ -3,6 +3,8 @@ package com.manilov.servermqtt.configuration;
 import com.manilov.servermqtt.service.MetricService;
 import lombok.RequiredArgsConstructor;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import org.eclipse.paho.client.mqttv3.MqttException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.integration.dsl.IntegrationFlow;
@@ -23,13 +25,15 @@ public class MqttConfiguration {
 
     private final MetricService metricService;
 
+    @Value("${mqtt.url}")
+    private String url;
+
     @Bean
     public MqttPahoClientFactory mqttClientFactory() {
         DefaultMqttPahoClientFactory factory = new DefaultMqttPahoClientFactory();
         MqttConnectOptions options = new MqttConnectOptions();
-        options.setServerURIs(new String[]{"tcp://localhost:1883"});
-        options.setUserName("guest");
-        options.setPassword("guest".toCharArray());
+        options.setServerURIs(new String[]{url});
+        options.setCleanSession(true);
         factory.setConnectionOptions(options);
         return factory;
     }

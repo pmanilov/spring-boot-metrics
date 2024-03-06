@@ -9,6 +9,18 @@ repositories {
     mavenCentral()
 }
 
+java {
+    sourceCompatibility = '17'
+}
+
+jar {
+    manifest {
+        attributes(
+                'Main-Class': 'com/manilov/Main'
+        )
+    }
+}
+
 dependencies {
     implementation group: 'com.squareup.okhttp3', name: 'okhttp', version: '4.1.0'
     testImplementation platform('org.junit:junit-bom:5.9.1')
