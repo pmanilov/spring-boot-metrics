@@ -28,7 +28,7 @@ public class Main {
                     client.connect(connOpts);
                     System.out.println("Connected");
 
-                    while (!Thread.interrupted()) {
+                    while (client.isConnected()) {
                         String message = String.valueOf(System.currentTimeMillis());
                         MqttMessage mqttMessage = new MqttMessage(message.getBytes());
                         mqttMessage.setQos(0);

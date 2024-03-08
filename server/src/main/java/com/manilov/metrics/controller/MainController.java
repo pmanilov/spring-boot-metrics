@@ -31,7 +31,7 @@ public class MainController {
             Thread captureThread = new Thread(captureTask);
             captureThread.start();
         } catch (PcapNativeException e) {
-            System.err.println(e.getMessage());
+            log.error(e.getMessage());
         }
     }
 
@@ -51,9 +51,7 @@ public class MainController {
                     }
                 }
             } catch (PcapNativeException | NotOpenException | EOFException | TimeoutException e) {
-                if (e.getMessage() != null) {
-                    log.error(e.getMessage());
-                }
+                log.error(e.getMessage());
             }
         }
     }
