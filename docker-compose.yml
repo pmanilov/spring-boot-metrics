@@ -32,6 +32,17 @@ services:
     cap_add:
       - NET_ADMIN
 
+  metrics-server-coap:
+    build:
+      context: .
+      dockerfile: coap.Dockerfile
+    ports:
+      - "8082:8082"
+      - "5683:5683"
+    cap_add:
+      - NET_ADMIN
+    network_mode: "host"
+
   prometheus:
     image: prom/prometheus
     volumes:

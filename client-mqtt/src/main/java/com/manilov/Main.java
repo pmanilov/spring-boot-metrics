@@ -35,8 +35,6 @@ public class Main {
                         //System.out.println("Publishing message: " + message);
                         client.publish(topic, mqttMessage);
                         System.out.println("Message published: " + message);
-                        Random random = new Random();
-
                         TimeUnit.SECONDS.sleep(5);
                     }
                 } catch (InterruptedException | MqttException e) {
