@@ -1,0 +1,20 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.manilov'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation group: 'com.rabbitmq', name: 'amqp-client', version: '5.20.0'
+    testImplementation platform('org.junit:junit-bom:5.9.1')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+test {
+    useJUnitPlatform()
+}

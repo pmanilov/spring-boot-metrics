@@ -20,7 +20,7 @@ configurations {
 jar {
     manifest {
         attributes(
-                'Main-Class': 'com/manilov/servermqtt/ServerAmqpApplication'
+                'Main-Class': 'com/manilov/serveramqp/ServerAmqpApplication'
         )
     }
 }
@@ -35,6 +35,7 @@ dependencies {
     implementation 'org.pcap4j:pcap4j-packetfactory-static:1.7.4'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation group: 'io.micrometer', name: 'micrometer-core', version: '1.11.1'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
     compileOnly 'org.projectlombok:lombok'

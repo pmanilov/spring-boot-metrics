@@ -23,6 +23,6 @@ public class RabbitMQConfiguration {
     @RabbitListener(queues = "metricsQueue")
     public void listen(String in) {
         metricService.updateDelay(Long.parseLong(in));
-        log.info("Message read from metricsQueue : " + in);
+        //log.info("Message read from metricsQueue : " + in);
     }
 }
