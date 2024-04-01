@@ -49,6 +49,10 @@ public class Main {
         for (int i = 0; i < COUNT_CLIENTS; i++) {
             Thread.startVirtualThread(taskAMQP);
         }
+
+        while (!Thread.interrupted()){
+
+        }
     }
 
     private static Runnable getTaskMQTT(String clientId) {
