@@ -7,6 +7,6 @@ RUN apt-get install -y libpcap-dev
 RUN apt install -y openjdk-17-jdk
 RUN mkdir /app
 WORKDIR /app
-COPY /server/build/libs/metrics-0.0.1-SNAPSHOT.jar /app.jar
+COPY /server/build/libs/server-0.0.1-SNAPSHOT.jar /app.jar
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "/app.jar"]
