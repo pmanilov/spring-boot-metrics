@@ -19,6 +19,10 @@ repositories {
     mavenCentral()
 }
 
+java {
+    sourceCompatibility = '17'
+}
+
 dependencies {
     implementation project(':common')
     implementation group: 'org.eclipse.californium', name: 'californium-core', version: '3.10.0'

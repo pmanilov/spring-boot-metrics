@@ -19,7 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.*;
 
 public class Main {
-    private final static Long PERIOD = 2L;
+    private final static Long PERIOD = 1L;
     private final static Integer COUNT_CLIENTS = 3;
     private final static String BROKER_MQTT = "tcp://localhost:1883";
     private final static String TOPIC_MQTT = "metricsTopic";
@@ -132,6 +132,7 @@ public class Main {
             try (Connection connection = factory.newConnection();
                  Channel channel = connection.createChannel()) {
                 channel.queueDeclare(QUEUE_NAME_AMQP, false, false, false, null);
+                channel.basicQos(0);
                 while (!Thread.interrupted()) {
                     String message = String.valueOf(System.currentTimeMillis());
                     channel.basicPublish("", QUEUE_NAME_AMQP, null, message.getBytes(StandardCharsets.UTF_8));

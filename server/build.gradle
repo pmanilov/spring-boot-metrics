@@ -25,6 +25,10 @@ repositories {
 	mavenCentral()
 }
 
+java {
+	sourceCompatibility = '17'
+}
+
 dependencies {
 	implementation project(':common')
 	implementation 'org.pcap4j:pcap4j-core:1.7.4'
