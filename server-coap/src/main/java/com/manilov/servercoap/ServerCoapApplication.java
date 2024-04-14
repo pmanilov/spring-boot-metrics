@@ -9,6 +9,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableScheduling
+@ComponentScan(basePackages = "com.manilov.service")
 public class ServerCoapApplication {
 
     public static void main(String[] args) {

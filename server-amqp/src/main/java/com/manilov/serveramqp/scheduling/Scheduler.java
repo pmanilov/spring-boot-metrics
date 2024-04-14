@@ -1,7 +1,7 @@
 package com.manilov.serveramqp.scheduling;
 
-import com.manilov.serveramqp.service.MetricService;
-import com.manilov.serveramqp.util.MutableDouble;
+import com.manilov.service.MetricService;
+import com.manilov.util.MutableDouble;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -1,13 +1,12 @@
 package com.manilov.servermqtt.handler;
 
-import com.manilov.servermqtt.service.MetricService;
+import com.manilov.service.MetricService;
 import lombok.extern.slf4j.Slf4j;
 import org.pcap4j.core.*;
 import org.pcap4j.packet.Packet;
 import org.pcap4j.packet.TcpPacket;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.stereotype.Controller;
 
 import java.io.EOFException;
 import java.util.concurrent.TimeoutException;

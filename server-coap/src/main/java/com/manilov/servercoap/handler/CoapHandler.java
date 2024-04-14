@@ -1,9 +1,8 @@
 package com.manilov.servercoap.handler;
 
-import com.manilov.servercoap.service.MetricService;
+import com.manilov.service.MetricService;
 import org.eclipse.californium.core.CoapResource;
 import org.eclipse.californium.core.server.resources.CoapExchange;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component

@@ -1,4 +1,4 @@
-package com.manilov.metrics.service;
+package com.manilov.service;
 
 import org.springframework.stereotype.Service;
 

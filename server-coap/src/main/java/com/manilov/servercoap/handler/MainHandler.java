@@ -1,6 +1,6 @@
 package com.manilov.servercoap.handler;
 
-import com.manilov.servercoap.service.MetricService;
+import com.manilov.service.MetricService;
 import lombok.extern.slf4j.Slf4j;
 import org.pcap4j.core.*;
 import org.pcap4j.packet.Packet;

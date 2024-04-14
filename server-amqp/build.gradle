@@ -7,10 +7,6 @@ plugins {
 group = 'com.manilov'
 version = '0.0.1-SNAPSHOT'
 
-java {
-    sourceCompatibility = '17'
-}
-
 configurations {
     compileOnly {
         extendsFrom annotationProcessor
@@ -30,6 +26,7 @@ repositories {
 }
 
 dependencies {
+    implementation project(':common')
     implementation 'org.springframework.boot:spring-boot-starter-amqp'
     implementation 'org.pcap4j:pcap4j-core:1.7.4'
     implementation 'org.pcap4j:pcap4j-packetfactory-static:1.7.4'

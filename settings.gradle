@@ -1,0 +1,3 @@
+rootProject.name = 'spring-boot-metrics'
+include 'server', 'server-mqtt', 'server-amqp', 'server-coap', 'common'
+

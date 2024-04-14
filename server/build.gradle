@@ -1,15 +1,11 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '3.1.5'
-	id 'io.spring.dependency-management' version '1.1.3'
+	id 'org.springframework.boot' version '3.2.3'
+	id 'io.spring.dependency-management' version '1.1.4'
 }
 
 group = 'com.manilov'
 version = '0.0.1-SNAPSHOT'
-
-java {
-	sourceCompatibility = '17'
-}
 
 jar {
 	manifest {
@@ -30,6 +26,7 @@ repositories {
 }
 
 dependencies {
+	implementation project(':common')
 	implementation 'org.pcap4j:pcap4j-core:1.7.4'
 	implementation 'org.pcap4j:pcap4j-packetfactory-static:1.7.4'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'

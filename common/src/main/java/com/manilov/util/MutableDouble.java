@@ -1,4 +1,4 @@
-package com.manilov.servermqtt.util;
+package com.manilov.util;
 
 public class MutableDouble extends Number {
 

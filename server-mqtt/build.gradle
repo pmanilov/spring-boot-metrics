@@ -7,10 +7,6 @@ plugins {
 group = 'com.manilov'
 version = '0.0.1-SNAPSHOT'
 
-java {
-    sourceCompatibility = '17'
-}
-
 jar {
     manifest {
         attributes(
@@ -28,6 +24,7 @@ configurations.all {
 }
 
 dependencies {
+    implementation project(':common')
     implementation group: 'org.springframework.integration', name: 'spring-integration-mqtt', version: '6.2.2'
     implementation group: 'org.springframework.integration', name: 'spring-integration-stream', version: '6.2.2'
     implementation group: 'org.eclipse.paho', name: 'org.eclipse.paho.client.mqttv3', version: '1.2.5'
@@ -43,6 +40,7 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
+
 
 tasks.named('test') {
     useJUnitPlatform()
