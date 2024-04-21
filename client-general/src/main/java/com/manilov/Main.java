@@ -1,5 +1,6 @@
 package com.manilov;
 
+import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
@@ -19,12 +20,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.*;
 
 public class Main {
+    private final static String HOSTNAME = "localhost";
+    //private final static String HOSTNAME = "2.59.40.166";
     private final static Long PERIOD = 1L;
     private final static Integer COUNT_CLIENTS = 3;
-    private final static String BROKER_MQTT = "tcp://localhost:1883";
+    private final static String BROKER_MQTT = "tcp://" + HOSTNAME + ":1883";
     private final static String TOPIC_MQTT = "metricsTopic";
     private final static String CLIENT_ID_PREFIX_MQTT = "JavaMqttPublisher";
-    private final static String COAP_URL = "coap://localhost:5683/metrics";
+    private final static String COAP_URL = "coap://" + HOSTNAME + ":5683/metrics";
     private final static String QUEUE_NAME_AMQP = "metricsQueue";
 
     public static void main(String[] args) {
@@ -107,7 +110,7 @@ public class Main {
                         .add("time", String.valueOf(System.currentTimeMillis()))
                         .build();
                 Request request = new Request.Builder()
-                        .url("http://localhost:8080/")
+                        .url("http://" + HOSTNAME + ":8080/")
                         .post(formBody)
                         .build();
                 try {
@@ -127,15 +130,18 @@ public class Main {
 
     private static Runnable getTaskAMQP() {
         ConnectionFactory factory = new ConnectionFactory();
-        factory.setHost("localhost");
+        factory.setHost(HOSTNAME);
         return () -> {
             try (Connection connection = factory.newConnection();
                  Channel channel = connection.createChannel()) {
+                AMQP.BasicProperties props = new AMQP.BasicProperties.Builder()
+                        .deliveryMode(2)
+                        .build();
                 channel.queueDeclare(QUEUE_NAME_AMQP, false, false, false, null);
                 channel.basicQos(0);
                 while (!Thread.interrupted()) {
                     String message = String.valueOf(System.currentTimeMillis());
-                    channel.basicPublish("", QUEUE_NAME_AMQP, null, message.getBytes(StandardCharsets.UTF_8));
+                    channel.basicPublish("", QUEUE_NAME_AMQP, props, message.getBytes(StandardCharsets.UTF_8));
                     System.out.println(" [x] Sent '" + message + "'");
                     TimeUnit.SECONDS.sleep(PERIOD);
                 }

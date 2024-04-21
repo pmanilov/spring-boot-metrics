@@ -20,7 +20,7 @@ public class RabbitMQConfiguration {
         return new Queue("metricsQueue", false);
     }
 
-    @RabbitListener(queues = "metricsQueue")
+    @RabbitListener(queues = "metricsQueue", ackMode = "NONE"/*, concurrency = "2-2"*/)
     public void listen(String in) {
         metricService.updateDelay(Long.parseLong(in));
         //log.info("Message read from metricsQueue : " + in);
