@@ -22,8 +22,8 @@ import java.util.concurrent.*;
 public class Main {
     private final static String HOSTNAME = "localhost";
     //private final static String HOSTNAME = "2.59.40.166";
-    private final static Long PERIOD = 1L;
-    private final static Integer COUNT_CLIENTS = 3;
+    private final static Long PERIOD = 100L;
+    private final static Integer COUNT_CLIENTS = 1;
     private final static String BROKER_MQTT = "tcp://" + HOSTNAME + ":1883";
     private final static String TOPIC_MQTT = "metricsTopic";
     private final static String CLIENT_ID_PREFIX_MQTT = "JavaMqttPublisher";
@@ -76,7 +76,7 @@ public class Main {
                     //System.out.println("Publishing message: " + message);
                     client.publish(TOPIC_MQTT, mqttMessage);
                     System.out.println("Message published: " + message);
-                    TimeUnit.SECONDS.sleep(PERIOD);
+                    TimeUnit.MILLISECONDS.sleep(PERIOD);
                 }
             } catch (InterruptedException | MqttException e) {
                 System.err.println(e.getMessage());
@@ -93,7 +93,7 @@ public class Main {
                     String payload = String.valueOf(System.currentTimeMillis());
                     CoapResponse response = coapClient.post(payload, 0);
                     System.out.println("POST Response: " + response.getResponseText());
-                    TimeUnit.SECONDS.sleep(PERIOD);
+                    TimeUnit.MILLISECONDS.sleep(PERIOD);
                 }
             } catch (ConnectorException | IOException | InterruptedException e) {
                 System.err.println(e.getMessage());
@@ -120,7 +120,7 @@ public class Main {
                     System.err.println(e.getMessage());
                 }
                 try {
-                    TimeUnit.SECONDS.sleep(PERIOD);
+                    TimeUnit.MILLISECONDS.sleep(PERIOD);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -135,7 +135,7 @@ public class Main {
             try (Connection connection = factory.newConnection();
                  Channel channel = connection.createChannel()) {
                 AMQP.BasicProperties props = new AMQP.BasicProperties.Builder()
-                        .deliveryMode(2)
+                        .deliveryMode(1)
                         .build();
                 channel.queueDeclare(QUEUE_NAME_AMQP, false, false, false, null);
                 channel.basicQos(0);
@@ -143,7 +143,7 @@ public class Main {
                     String message = String.valueOf(System.currentTimeMillis());
                     channel.basicPublish("", QUEUE_NAME_AMQP, props, message.getBytes(StandardCharsets.UTF_8));
                     System.out.println(" [x] Sent '" + message + "'");
-                    TimeUnit.SECONDS.sleep(PERIOD);
+                    TimeUnit.MILLISECONDS.sleep(PERIOD);
                 }
             } catch (TimeoutException | IOException | InterruptedException e) {
                 System.out.println(e.getMessage());
