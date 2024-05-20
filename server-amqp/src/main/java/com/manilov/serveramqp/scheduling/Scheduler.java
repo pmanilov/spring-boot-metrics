@@ -19,11 +19,17 @@ public class Scheduler {
     private final MutableDouble avgThroughput;
     private final MutableDouble avgDelay;
     private final MutableDouble avgSize;
+    private final MutableDouble lastThroughput;
+    private final MutableDouble lastDelay;
+    private final MutableDouble lastSize;
 
     public Scheduler(MeterRegistry meterRegistry) {
         avgThroughput = meterRegistry.gauge("avg_throughput_amqp", new MutableDouble(0));
         avgDelay = meterRegistry.gauge("avg_delay_amqp", new MutableDouble(0));
         avgSize = meterRegistry.gauge("avg_packet_size_amqp", new MutableDouble(0));
+        lastThroughput = meterRegistry.gauge("last_throughput_amqp", new MutableDouble(0));
+        lastDelay = meterRegistry.gauge("last_delay_amqp", new MutableDouble(0));
+        lastSize = meterRegistry.gauge("last_packet_size_amqp", new MutableDouble(0));
     }
 
     @Scheduled(fixedDelay = 500, initialDelay = 500)
@@ -31,5 +37,8 @@ public class Scheduler {
         avgThroughput.setValue(metricService.getAvgThroughput());
         avgDelay.setValue(metricService.getAvgDelay());
         avgSize.setValue(metricService.getAvgSize());
+        lastThroughput.setValue(metricService.getLastThroughput());
+        lastDelay.setValue(metricService.getLastDelay());
+        lastSize.setValue(metricService.getLastSize());
     }
 }

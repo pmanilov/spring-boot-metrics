@@ -20,15 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.*;
 
 public class Main {
-    private final static String HOSTNAME = "localhost";
-    //private final static String HOSTNAME = "2.59.40.166";
-    private final static Long PERIOD = 100L;
-    private final static Integer COUNT_CLIENTS = 1;
-    private final static String BROKER_MQTT = "tcp://" + HOSTNAME + ":1883";
-    private final static String TOPIC_MQTT = "metricsTopic";
-    private final static String CLIENT_ID_PREFIX_MQTT = "JavaMqttPublisher";
-    private final static String COAP_URL = "coap://" + HOSTNAME + ":5683/metrics";
-    private final static String QUEUE_NAME_AMQP = "metricsQueue";
+
 
     public static void main(String[] args) {
 
@@ -70,7 +62,7 @@ public class Main {
                 System.out.println("Connected");
 
                 while (client.isConnected()) {
-                    String message = String.valueOf(System.currentTimeMillis());
+                    String message = String.valueOf(System.nanoTime());
                     MqttMessage mqttMessage = new MqttMessage(message.getBytes());
                     mqttMessage.setQos(0);
                     //System.out.println("Publishing message: " + message);
@@ -90,7 +82,7 @@ public class Main {
             CoapClient coapClient = new CoapClient(COAP_URL);
             try {
                 while (!Thread.interrupted()) {
-                    String payload = String.valueOf(System.currentTimeMillis());
+                    String payload = String.valueOf(System.nanoTime());
                     CoapResponse response = coapClient.post(payload, 0);
                     System.out.println("POST Response: " + response.getResponseText());
                     TimeUnit.MILLISECONDS.sleep(PERIOD);
@@ -107,7 +99,7 @@ public class Main {
         return () -> {
             while (!Thread.interrupted()) {
                 RequestBody formBody = new FormBody.Builder()
-                        .add("time", String.valueOf(System.currentTimeMillis()))
+                        .add("time", String.valueOf(System.nanoTime()))
                         .build();
                 Request request = new Request.Builder()
                         .url("http://" + HOSTNAME + ":8080/")
@@ -122,7 +114,7 @@ public class Main {
                 try {
                     TimeUnit.MILLISECONDS.sleep(PERIOD);
                 } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
+                    System.err.println(e.getMessage());
                 }
             }
         };
@@ -140,13 +132,13 @@ public class Main {
                 channel.queueDeclare(QUEUE_NAME_AMQP, false, false, false, null);
                 channel.basicQos(0);
                 while (!Thread.interrupted()) {
-                    String message = String.valueOf(System.currentTimeMillis());
+                    String message = String.valueOf(System.nanoTime());
                     channel.basicPublish("", QUEUE_NAME_AMQP, props, message.getBytes(StandardCharsets.UTF_8));
                     System.out.println(" [x] Sent '" + message + "'");
                     TimeUnit.MILLISECONDS.sleep(PERIOD);
                 }
             } catch (TimeoutException | IOException | InterruptedException e) {
-                System.out.println(e.getMessage());
+                System.err.println(e.getMessage());
             }
         };
     }
