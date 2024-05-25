@@ -21,6 +21,15 @@ import java.util.concurrent.*;
 
 public class Main {
 
+    private final static String HOSTNAME = "localhost";
+    //private final static String HOSTNAME = "2.59.40.166";
+    private final static Long PERIOD = 100L;
+    private final static Integer COUNT_CLIENTS = 1;
+    private final static String BROKER_MQTT = "tcp://" + HOSTNAME + ":1883";
+    private final static String TOPIC_MQTT = "metricsTopic";
+    private final static String CLIENT_ID_PREFIX_MQTT = "JavaMqttPublisher";
+    private final static String COAP_URL = "coap://" + HOSTNAME + ":5683/metrics";
+    private final static String QUEUE_NAME_AMQP = "metricsQueue";
 
     public static void main(String[] args) {
 
