@@ -17,13 +17,15 @@ import org.eclipse.paho.client.mqttv3.persist.MqttDefaultFilePersistence;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.concurrent.*;
 
 public class Main {
 
     private final static String HOSTNAME = "localhost";
     //private final static String HOSTNAME = "2.59.40.166";
-    private final static Long PERIOD = 100L;
+    private final static Long PERIOD = 25L;
     private final static Integer COUNT_CLIENTS = 1;
     private final static String BROKER_MQTT = "tcp://" + HOSTNAME + ":1883";
     private final static String TOPIC_MQTT = "metricsTopic";
@@ -71,13 +73,17 @@ public class Main {
                 System.out.println("Connected");
 
                 while (client.isConnected()) {
-                    String message = String.valueOf(System.nanoTime());
+                    Instant now = Instant.now();
+                    long currentTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
+                    String message = String.valueOf(currentTime);
                     MqttMessage mqttMessage = new MqttMessage(message.getBytes());
                     mqttMessage.setQos(0);
                     //System.out.println("Publishing message: " + message);
                     client.publish(TOPIC_MQTT, mqttMessage);
                     System.out.println("Message published: " + message);
-                    TimeUnit.MILLISECONDS.sleep(PERIOD);
+                    Long random = ThreadLocalRandom.current().nextLong(PERIOD) / 2;
+                    TimeUnit.MILLISECONDS.sleep(PERIOD + random);
+                    //TimeUnit.MILLISECONDS.sleep(PERIOD);
                 }
             } catch (InterruptedException | MqttException e) {
                 System.err.println(e.getMessage());
@@ -89,15 +95,20 @@ public class Main {
         return () -> {
             CoapConfig.register();
             CoapClient coapClient = new CoapClient(COAP_URL);
-            try {
                 while (!Thread.interrupted()) {
-                    String payload = String.valueOf(System.nanoTime());
-                    CoapResponse response = coapClient.post(payload, 0);
-                    System.out.println("POST Response: " + response.getResponseText());
-                    TimeUnit.MILLISECONDS.sleep(PERIOD);
-                }
-            } catch (ConnectorException | IOException | InterruptedException e) {
-                System.err.println(e.getMessage());
+                    try {
+                        Instant now = Instant.now();
+                        long currentTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
+                        String payload = String.valueOf(currentTime);
+                        CoapResponse response = coapClient.post(payload, 0);
+                        System.out.println("POST Response: " + response.getResponseText());
+                        Long random = ThreadLocalRandom.current().nextLong(PERIOD) / 2;
+                        TimeUnit.MILLISECONDS.sleep(PERIOD + random);
+                        //TimeUnit.MILLISECONDS.sleep(PERIOD);
+                    }
+                    catch (ConnectorException | IOException | InterruptedException e) {
+                        System.err.println(e.getMessage());
+                    }
             }
             coapClient.shutdown();
         };
@@ -107,8 +118,10 @@ public class Main {
         OkHttpClient okHttpClient = new OkHttpClient();
         return () -> {
             while (!Thread.interrupted()) {
+                Instant now = Instant.now();
+                long currentTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
                 RequestBody formBody = new FormBody.Builder()
-                        .add("time", String.valueOf(System.nanoTime()))
+                        .add("time", String.valueOf(currentTime))
                         .build();
                 Request request = new Request.Builder()
                         .url("http://" + HOSTNAME + ":8080/")
@@ -121,7 +134,9 @@ public class Main {
                     System.err.println(e.getMessage());
                 }
                 try {
-                    TimeUnit.MILLISECONDS.sleep(PERIOD);
+                    Long random = ThreadLocalRandom.current().nextLong(PERIOD) / 2;
+                    TimeUnit.MILLISECONDS.sleep(PERIOD + random);
+                    //TimeUnit.MILLISECONDS.sleep(PERIOD);
                 } catch (InterruptedException e) {
                     System.err.println(e.getMessage());
                 }
@@ -141,10 +156,14 @@ public class Main {
                 channel.queueDeclare(QUEUE_NAME_AMQP, false, false, false, null);
                 channel.basicQos(0);
                 while (!Thread.interrupted()) {
-                    String message = String.valueOf(System.nanoTime());
+                    Instant now = Instant.now();
+                    long currentTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
+                    String message = String.valueOf(currentTime);
                     channel.basicPublish("", QUEUE_NAME_AMQP, props, message.getBytes(StandardCharsets.UTF_8));
                     System.out.println(" [x] Sent '" + message + "'");
-                    TimeUnit.MILLISECONDS.sleep(PERIOD);
+                    Long random = ThreadLocalRandom.current().nextLong(PERIOD) / 2;
+                    TimeUnit.MILLISECONDS.sleep(PERIOD + random);
+                    //TimeUnit.MILLISECONDS.sleep(PERIOD);
                 }
             } catch (TimeoutException | IOException | InterruptedException e) {
                 System.err.println(e.getMessage());

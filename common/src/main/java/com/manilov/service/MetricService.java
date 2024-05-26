@@ -2,6 +2,9 @@ package com.manilov.service;
 
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+
 @Service
 public class MetricService {
     private long sumDelay;
@@ -19,7 +22,8 @@ public class MetricService {
     }
 
     public void updateDelay(long clientTime) {
-        long nanoTime = System.nanoTime();
+        Instant now = Instant.now();
+        long nanoTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
         this.sumDelay += nanoTime - clientTime;
         this.lastDelay = nanoTime - clientTime;
         this.countDelay++;
