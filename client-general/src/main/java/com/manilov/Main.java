@@ -8,6 +8,9 @@ import okhttp3.*;
 import org.eclipse.californium.core.CoapClient;
 import org.eclipse.californium.core.CoapResponse;
 import org.eclipse.californium.core.config.CoapConfig;
+import org.eclipse.californium.core.network.CoapEndpoint;
+import org.eclipse.californium.elements.config.Configuration;
+import org.eclipse.californium.elements.config.DefinitionUtils;
 import org.eclipse.californium.elements.exception.ConnectorException;
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
@@ -25,8 +28,8 @@ public class Main {
 
     private final static String HOSTNAME = "localhost";
     //private final static String HOSTNAME = "2.59.40.166";
-    private final static Long PERIOD = 25L;
-    private final static Integer COUNT_CLIENTS = 1;
+    private final static Long PERIOD = 50L;
+    private final static Integer COUNT_CLIENTS = 300;
     private final static String BROKER_MQTT = "tcp://" + HOSTNAME + ":1883";
     private final static String TOPIC_MQTT = "metricsTopic";
     private final static String CLIENT_ID_PREFIX_MQTT = "JavaMqttPublisher";
@@ -94,7 +97,12 @@ public class Main {
     private static Runnable getTaskCoAP() {
         return () -> {
             CoapConfig.register();
+            org.eclipse.californium.elements.config.Configuration configuration = org.eclipse.californium.elements.config.Configuration.getStandard();
+            configuration.set(CoapConfig.EXCHANGE_LIFETIME, 5L, TimeUnit.SECONDS);
+            CoapEndpoint coapEndpoint = CoapEndpoint.builder().setConfiguration(configuration).build();
             CoapClient coapClient = new CoapClient(COAP_URL);
+            coapClient.setEndpoint(coapEndpoint);
+            coapClient.setTimeout(5000L);
                 while (!Thread.interrupted()) {
                     try {
                         Instant now = Instant.now();
@@ -102,6 +110,7 @@ public class Main {
                         String payload = String.valueOf(currentTime);
                         CoapResponse response = coapClient.post(payload, 0);
                         System.out.println("POST Response: " + response.getResponseText());
+
                         Long random = ThreadLocalRandom.current().nextLong(PERIOD) / 2;
                         TimeUnit.MILLISECONDS.sleep(PERIOD + random);
                         //TimeUnit.MILLISECONDS.sleep(PERIOD);
@@ -130,14 +139,10 @@ public class Main {
                 try {
                     Response response = okHttpClient.newCall(request).execute();
                     //String stringResponse = response.body().string();
-                } catch (IOException e) {
-                    System.err.println(e.getMessage());
-                }
-                try {
                     Long random = ThreadLocalRandom.current().nextLong(PERIOD) / 2;
                     TimeUnit.MILLISECONDS.sleep(PERIOD + random);
                     //TimeUnit.MILLISECONDS.sleep(PERIOD);
-                } catch (InterruptedException e) {
+                } catch (InterruptedException | IOException e) {
                     System.err.println(e.getMessage());
                 }
             }
