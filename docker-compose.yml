@@ -1,29 +1,13 @@
-#version: '3'
+version: '3'
 services:
   mosquitto:
     image: eclipse-mosquitto
     ports:
-      - "1883:1883"
+      - "1884:1884"
     volumes:
       - ./mosquitto/:/mosquitto/config
     networks:
       - mosquitto
-
-  rabbitmq:
-    image: rabbitmq:3-management
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-
-  metrics-server-http:
-    build:
-      context: .
-      dockerfile: http.Dockerfile
-    ports:
-      - "8080:8080"
-    cap_add:
-      - NET_ADMIN
-    network_mode: "host"
 
   metrics-server-mqtt:
     build:
@@ -38,26 +22,17 @@ services:
     cap_add:
       - NET_ADMIN
 
-  metrics-server-coap:
+  metrics-server-mqtt-udp:
     build:
       context: .
-      dockerfile: coap.Dockerfile
+      dockerfile: mqtt-udp.Dockerfile
     ports:
       - "8082:8082"
-      - "5683:5683"
+      - "1883:1883/udp"
     cap_add:
       - NET_ADMIN
-    network_mode: "host"
-
-  metrics-server-amqp:
-    build:
-      context: .
-      dockerfile: amqp.Dockerfile
-    ports:
-      - "8083:8083"
-    cap_add:
-      - NET_ADMIN
-    network_mode: "host"
+    networks:
+      - mosquitto
 
   prometheus:
     image: prom/prometheus
@@ -65,11 +40,19 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
+    networks:
+      - mosquitto
 
   grafana:
     image: grafana/grafana
     ports:
       - "3000:3000"
+    networks:
+      - mosquitto
+
 networks:
   mosquitto:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/16

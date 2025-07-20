@@ -39,12 +39,12 @@ public class MainHandler {
                 Packet packet = handle.getNextPacketEx();
                 if (packet.contains(TcpPacket.class)) {
                     TcpPacket tcpPacket = packet.get(TcpPacket.class);
-                    if (tcpPacket.getHeader().getSrcPort().valueAsInt() == 1883) {
+                    if (tcpPacket.getHeader().getSrcPort().valueAsInt() == 1884) {
                         if (tcpPacket.getPayload() != null) {
                             byte[] mqttPayload = tcpPacket.getPayload().getRawData();
                             if (isMqttPublishMessage(mqttPayload)) {
                                 //String mqttContent = new String(mqttPayload);
-                                int totalPacketSize = mqttPayload.length;
+                                int totalPacketSize = packet.getRawData().length;
                                 metricService.updateSize(totalPacketSize);
                             }
                         }
