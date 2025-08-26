@@ -5,6 +5,7 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.persist.MqttDefaultFilePersistence;
+import ru.dz.mqtt_udp.Engine;
 import ru.dz.mqtt_udp.PublishPacket;
 
 import java.io.IOException;
@@ -15,8 +16,8 @@ import java.util.concurrent.TimeUnit;
 public class Main {
 
     private final static String HOSTNAME = "localhost";
-    private final static Long PERIOD = 500L;
-    private final static Integer COUNT_CLIENTS = 1;
+    private final static Long PERIOD = 400L;
+    private final static Integer COUNT_CLIENTS = 5;
     private final static String BROKER_MQTT = "tcp://" + HOSTNAME + ":1884";
     private final static String TOPIC_MQTT = "metricsTopic";
     private final static String CLIENT_ID_PREFIX_MQTT = "JavaMqttPublisher";
@@ -30,6 +31,7 @@ public class Main {
             Thread.startVirtualThread(taskMQTT);
         }
 
+        Engine.setThrottle(0);
         for (int i = 0; i < COUNT_CLIENTS; i++) {
             Thread.startVirtualThread(getTaskMqttUdp());
         }
