@@ -5,6 +5,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import ru.dz.mqtt_udp.Engine;
 import ru.dz.mqtt_udp.PacketSourceServer;
 import ru.dz.mqtt_udp.PublishPacket;
 
@@ -14,29 +15,27 @@ import java.util.concurrent.*;
 @Configuration
 @RequiredArgsConstructor
 public class UdpMqttConfig {
+    private static final String METRICS_TOPIC = "metricsTopic";
 
     private final MetricService metricService;
-    private PacketSourceServer receiver;
-
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final PacketSourceServer receiver = new PacketSourceServer();;
 
     @PostConstruct
     public void init() {
-        receiver = new PacketSourceServer();
+        Engine.setThrottle(0);
 
         receiver.setSink(pkt -> {
             if (pkt instanceof PublishPacket pub) {
-                executor.submit(() -> handlePacket(pub));
+                handlePacket(pub);
             }
         });
     }
 
     private void handlePacket(PublishPacket pub) {
         String topic = pub.getTopic();
-        if ("metricsTopic".equals(topic)) {
-            String value = pub.getValueString();
+        if (METRICS_TOPIC.equals(topic)) {
             try {
-                long sentTs = Long.parseLong(value);
+                long sentTs = Long.parseLong(pub.getValueString());
                 metricService.updateDelay(sentTs);
             } catch (NumberFormatException ignored) {}
         }
