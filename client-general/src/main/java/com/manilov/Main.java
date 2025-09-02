@@ -15,24 +15,16 @@ import java.util.concurrent.TimeUnit;
 
 public class Main {
 
-    private final static String HOSTNAME = "localhost";
-    private final static Long PERIOD = 400L;
-    private final static Integer COUNT_CLIENTS = 5;
-    private final static String BROKER_MQTT = "tcp://" + HOSTNAME + ":1884";
-    private final static String TOPIC_MQTT = "metricsTopic";
-    private final static String CLIENT_ID_PREFIX_MQTT = "JavaMqttPublisher";
-    private final static String TOPIC_MQTT_UDP = "metricsTopic";
-
     public static void main(String[] args) {
 
-        for (int i = 0; i < COUNT_CLIENTS; i++) {
-            final String clientId = CLIENT_ID_PREFIX_MQTT + i;
+        for (int i = 0; i < Config.countClients; i++) {
+            final String clientId = Config.clientIdPrefixMqtt + i;
             Runnable taskMQTT = getTaskMQTT(clientId);
             Thread.startVirtualThread(taskMQTT);
         }
 
         Engine.setThrottle(0);
-        for (int i = 0; i < COUNT_CLIENTS; i++) {
+        for (int i = 0; i < Config.countClients; i++) {
             Thread.startVirtualThread(getTaskMqttUdp());
         }
 
@@ -48,11 +40,11 @@ public class Main {
                 long currentTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
                 String payload = String.valueOf(currentTime);
                 try {
-                    PublishPacket pkt = new PublishPacket(TOPIC_MQTT_UDP, payload);
+                    PublishPacket pkt = new PublishPacket(Config.topicMqttUdp, payload);
                     pkt.send();
                     System.out.println("MQTT-UDP sent: " + payload);
-                    Long random = ThreadLocalRandom.current().nextLong(PERIOD) / 2;
-                    TimeUnit.MILLISECONDS.sleep(PERIOD + random);
+                    Long random = ThreadLocalRandom.current().nextLong(Config.period) / 2;
+                    TimeUnit.MILLISECONDS.sleep(Config.period + random);
                 } catch (InterruptedException | IOException e) {
                     System.err.println(e.getMessage());
                 }
@@ -63,13 +55,13 @@ public class Main {
     private static Runnable getTaskMQTT(String clientId) {
         return () -> {
             try (MqttDefaultFilePersistence persistence = new MqttDefaultFilePersistence("tmpFiles");
-                 MqttClient client = new MqttClient(BROKER_MQTT, clientId, persistence)) {
+                 MqttClient client = new MqttClient(Config.getBrokerUrl(), clientId, persistence)) {
                 MqttConnectOptions connOpts = new MqttConnectOptions();
                 connOpts.setCleanSession(true);
 
-                System.out.println("Connecting to broker: " + BROKER_MQTT);
+                System.out.println("Connecting to broker: " + Config.getBrokerUrl());
                 client.connect(connOpts);
-                System.out.println("Connected");
+                System.out.println("Connected: " + clientId);
 
                 while (client.isConnected()) {
                     Instant now = Instant.now();
@@ -77,12 +69,11 @@ public class Main {
                     String message = String.valueOf(currentTime);
                     MqttMessage mqttMessage = new MqttMessage(message.getBytes());
                     mqttMessage.setQos(0);
-                    //System.out.println("Publishing message: " + message);
-                    client.publish(TOPIC_MQTT, mqttMessage);
-                    System.out.println("Message published: " + message);
-                    Long random = ThreadLocalRandom.current().nextLong(PERIOD) / 2;
-                    TimeUnit.MILLISECONDS.sleep(PERIOD + random);
-                    //TimeUnit.MILLISECONDS.sleep(PERIOD);
+                    client.publish(Config.topicMqtt, mqttMessage);
+                    System.out.println(clientId + " published: " + message);
+
+                    Long random = ThreadLocalRandom.current().nextLong(Config.period) / 2;
+                    TimeUnit.MILLISECONDS.sleep(Config.period + random);
                 }
             } catch (InterruptedException | MqttException e) {
                 System.err.println(e.getMessage());
