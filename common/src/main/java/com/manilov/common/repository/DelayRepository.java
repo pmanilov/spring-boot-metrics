@@ -5,8 +5,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-import java.sql.Timestamp;
-
 @Repository
 @RequiredArgsConstructor
 public class DelayRepository {
@@ -21,7 +19,7 @@ public class DelayRepository {
         );
     }
 
-    public void deleteAll() {
-        jdbcTemplate.update("DELETE FROM delays");
+    public void deleteAll(String serverId) {
+        jdbcTemplate.update("ALTER TABLE delays DELETE WHERE server_id = ?", serverId);
     }
 }

@@ -16,7 +16,6 @@ import java.util.concurrent.TimeUnit;
 public class Main {
 
     public static void main(String[] args) {
-
         for (int i = 0; i < Config.countClients; i++) {
             final String clientId = Config.clientIdPrefixMqtt + i;
             Runnable taskMQTT = getTaskMQTT(clientId);
@@ -27,15 +26,20 @@ public class Main {
         for (int i = 0; i < Config.countClients; i++) {
             Thread.startVirtualThread(getTaskMqttUdp());
         }
-
-        while (!Thread.interrupted()){
-
-        }
     }
 
     private static Runnable getTaskMqttUdp() {
         return () -> {
             while (!Thread.interrupted()) {
+                if (Config.paused) {
+                    try {
+                        TimeUnit.MILLISECONDS.sleep(200);
+                        continue;
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                }
+
                 Instant now = Instant.now();
                 long currentTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
                 String payload = String.valueOf(currentTime);
@@ -64,6 +68,15 @@ public class Main {
                 System.out.println("Connected: " + clientId);
 
                 while (client.isConnected()) {
+                    if (Config.paused) {
+                        try {
+                            TimeUnit.MILLISECONDS.sleep(200);
+                            continue;
+                        } catch (InterruptedException e) {
+                            break;
+                        }
+                    }
+
                     Instant now = Instant.now();
                     long currentTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
                     String message = String.valueOf(currentTime);

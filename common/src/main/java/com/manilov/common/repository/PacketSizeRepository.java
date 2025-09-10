@@ -21,7 +21,7 @@ public class PacketSizeRepository {
         );
     }
 
-    public void deleteAll() {
-        jdbcTemplate.update("DELETE FROM packet_sizes");
+    public void deleteAll(String serverId) {
+        jdbcTemplate.update("ALTER TABLE packet_sizes DELETE WHERE server_id = ?", serverId);
     }
 }

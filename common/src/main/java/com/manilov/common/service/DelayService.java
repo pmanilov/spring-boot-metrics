@@ -19,7 +19,7 @@ public class DelayService {
         delayRepository.save(new Delay(now, serverId, delay));
     }
 
-    public void deleteAll() {
-        delayRepository.deleteAll();
+    public void deleteAll(String serverId) {
+        delayRepository.deleteAll(serverId);
     }
 }

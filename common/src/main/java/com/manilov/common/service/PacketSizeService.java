@@ -14,7 +14,7 @@ public class PacketSizeService {
         packetSizeRepository.save(packetSize);
     }
 
-    public void deleteAll() {
-        packetSizeRepository.deleteAll();
+    public void deleteAll(String serverId) {
+        packetSizeRepository.deleteAll(serverId);
     }
 }
