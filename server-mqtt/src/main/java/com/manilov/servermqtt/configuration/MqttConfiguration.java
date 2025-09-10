@@ -1,6 +1,6 @@
 package com.manilov.servermqtt.configuration;
 
-import com.manilov.service.MetricService;
+import com.manilov.common.service.DelayService;
 import lombok.RequiredArgsConstructor;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,8 +21,10 @@ import org.springframework.messaging.MessageHandler;
 @Configuration
 @RequiredArgsConstructor
 public class MqttConfiguration {
+    private static final String METRICS_TOPIC = "metricsTopic";
+    private static final String SERVER_ID = "mqtt";
 
-    private final MetricService metricService;
+    private final DelayService delayService;
 
     @Value("${mqtt.url}")
     private String url;
@@ -37,8 +39,6 @@ public class MqttConfiguration {
         return factory;
     }
 
-    // publisher
-
     @Bean
     public IntegrationFlow mqttOutFlow() {
         return IntegrationFlow.from(CharacterStreamReadingMessageSource.stdin(),
@@ -52,11 +52,9 @@ public class MqttConfiguration {
     public MessageHandler mqttOutbound() {
         MqttPahoMessageHandler messageHandler = new MqttPahoMessageHandler("metricsPublisher", mqttClientFactory());
         messageHandler.setAsync(true);
-        messageHandler.setDefaultTopic("metricsTopic");
+        messageHandler.setDefaultTopic(METRICS_TOPIC);
         return messageHandler;
     }
-
-    // consumer
 
     @Bean
     public IntegrationFlow mqttInFlow() {
@@ -74,15 +72,15 @@ public class MqttConfiguration {
     @Bean
     public MessageHandler messageHandler() {
         return message -> {
-            String payload = (String) message.getPayload();
-            metricService.updateDelay(Long.parseLong(payload));
+            long sentTs = Long.parseLong(message.getPayload().toString());
+            delayService.save(sentTs, SERVER_ID);
         };
     }
 
     @Bean
     public MessageProducerSupport mqttInbound() {
         MqttPahoMessageDrivenChannelAdapter adapter = new MqttPahoMessageDrivenChannelAdapter("metricsConsumer",
-                mqttClientFactory(), "metricsTopic");
+                mqttClientFactory(), METRICS_TOPIC);
         adapter.setCompletionTimeout(5000);
         adapter.setConverter(new DefaultPahoMessageConverter());
         adapter.setQos(0);

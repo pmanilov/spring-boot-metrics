@@ -1,6 +1,6 @@
 package com.manilov.servermqttudp.configuration;
 
-import com.manilov.service.MetricService;
+import com.manilov.common.service.DelayService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -10,14 +10,14 @@ import ru.dz.mqtt_udp.PacketSourceServer;
 import ru.dz.mqtt_udp.PublishPacket;
 
 import java.io.IOException;
-import java.util.concurrent.*;
 
 @Configuration
 @RequiredArgsConstructor
 public class UdpMqttConfig {
     private static final String METRICS_TOPIC = "metricsTopic";
+    private static final String SERVER_ID = "mqtt-udp";
 
-    private final MetricService metricService;
+    private final DelayService delayService;
     private final PacketSourceServer receiver = new PacketSourceServer();;
 
     @PostConstruct
@@ -36,7 +36,7 @@ public class UdpMqttConfig {
         if (METRICS_TOPIC.equals(topic)) {
             try {
                 long sentTs = Long.parseLong(pub.getValueString());
-                metricService.updateDelay(sentTs);
+                delayService.save(sentTs, SERVER_ID);
             } catch (NumberFormatException ignored) {}
         }
     }

@@ -1,25 +1,23 @@
 plugins {
-    id 'java'
-    id 'org.springframework.boot' version '3.2.3'
-    id 'io.spring.dependency-management' version '1.1.4'
+    id 'java-library'
 }
 
-group = 'com.manilov'
+group = 'com.manilov.common'
 
 repositories {
     mavenCentral()
 }
 
 java {
-    sourceCompatibility = '17'
+    sourceCompatibility = '21'
 }
 
 dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter'
-    testImplementation platform('org.junit:junit-bom:5.10.0')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
-}
+    api 'org.springframework.boot:spring-boot-starter:3.5.5'
+    api 'org.springframework.boot:spring-boot-starter-jdbc:3.5.5'
+    api 'com.clickhouse:jdbc-v2:0.9.2'
+    api 'org.lz4:lz4-java:1.8.0'
+    compileOnly 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
 
-test {
-    useJUnitPlatform()
 }

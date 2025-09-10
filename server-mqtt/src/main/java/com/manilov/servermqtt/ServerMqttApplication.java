@@ -14,7 +14,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableScheduling
-@ComponentScan(basePackages = {"com.manilov.service", "com.manilov.servermqtt"})
+@ComponentScan(basePackages = {"com.manilov.common", "com.manilov.servermqtt"})
 public class ServerMqttApplication {
 
     public static void main(String[] args) {

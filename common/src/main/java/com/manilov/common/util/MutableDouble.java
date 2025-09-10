@@ -1,4 +1,4 @@
-package com.manilov.util;
+package com.manilov.common.util;
 
 public class MutableDouble extends Number {
 

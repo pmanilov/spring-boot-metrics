@@ -1,6 +1,7 @@
 package com.manilov.servermqttudp.handler;
 
-import com.manilov.service.MetricService;
+import com.manilov.common.domain.PacketSize;
+import com.manilov.common.service.PacketSizeService;
 import lombok.extern.slf4j.Slf4j;
 import org.pcap4j.core.*;
 import org.pcap4j.packet.Packet;
@@ -9,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.EOFException;
+import java.time.Instant;
 import java.util.concurrent.TimeoutException;
 
 @Component
@@ -16,7 +18,7 @@ import java.util.concurrent.TimeoutException;
 public class MainHandler {
 
     @Autowired
-    private MetricService metricService;
+    private PacketSizeService packetSizeService;
 
     private PcapHandle handle;
 
@@ -54,7 +56,7 @@ public class MainHandler {
 
                         if (payload != null && isMqttPublishMessage(payload)) {
                             int totalPacketSize =  packet.getRawData().length;
-                            metricService.updateSize(totalPacketSize);
+                            packetSizeService.save(new PacketSize(Instant.now(), "mqtt-udp", totalPacketSize));
                             //log.info("Captured MQTT/UDP PUBLISH packet, size: {} bytes", totalPacketSize);
                         }
                     }
