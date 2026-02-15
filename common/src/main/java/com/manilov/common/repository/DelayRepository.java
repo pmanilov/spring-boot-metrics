@@ -10,6 +10,10 @@ import org.springframework.stereotype.Repository;
 public class DelayRepository {
     private final JdbcTemplate jdbcTemplate;
 
+    public Double selectAverageDelay(String serverId) {
+        return jdbcTemplate.queryForObject("SELECT AVG(delay_ms) FROM delays WHERE server_id = ?", Double.class, serverId);
+    }
+
     public void save(Delay delay) {
         jdbcTemplate.update(
                 "INSERT INTO delays (ts, server_id, delay_ms) VALUES (?, ?, ?)",

@@ -21,13 +21,14 @@ import org.springframework.messaging.MessageHandler;
 @Configuration
 @RequiredArgsConstructor
 public class MqttConfiguration {
-    private static final String METRICS_TOPIC = "metricsTopic";
-    private static final String SERVER_ID = "mqtt";
-
     private final DelayService delayService;
 
     @Value("${mqtt.url}")
     private String url;
+    @Value("${server.id}")
+    private String serverId;
+    @Value("${metrics.topic}")
+    private String metricsTopic;
 
     @Bean
     public MqttPahoClientFactory mqttClientFactory() {
@@ -54,7 +55,7 @@ public class MqttConfiguration {
     public MessageHandler mqttOutbound() {
         MqttPahoMessageHandler messageHandler = new MqttPahoMessageHandler("metricsPublisher", mqttClientFactory());
         messageHandler.setAsync(true);
-        messageHandler.setDefaultTopic(METRICS_TOPIC);
+        messageHandler.setDefaultTopic(metricsTopic);
         return messageHandler;
     }
 
@@ -75,14 +76,14 @@ public class MqttConfiguration {
     public MessageHandler messageHandler() {
         return message -> {
             long sentTs = Long.parseLong(message.getPayload().toString());
-            delayService.save(sentTs, SERVER_ID);
+            delayService.save(sentTs, serverId);
         };
     }
 
     @Bean
     public MessageProducerSupport mqttInbound() {
         MqttPahoMessageDrivenChannelAdapter adapter = new MqttPahoMessageDrivenChannelAdapter("metricsConsumer",
-                mqttClientFactory(), METRICS_TOPIC);
+                mqttClientFactory(), metricsTopic);
         adapter.setCompletionTimeout(5000);
         adapter.setConverter(new DefaultPahoMessageConverter());
         adapter.setQos(0);

@@ -3,6 +3,7 @@ package com.manilov.servermqttudp.configuration;
 import com.manilov.common.service.DelayService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import ru.dz.mqtt_udp.Engine;
@@ -14,11 +15,13 @@ import java.io.IOException;
 @Configuration
 @RequiredArgsConstructor
 public class UdpMqttConfig {
-    private static final String METRICS_TOPIC = "metricsTopic";
-    private static final String SERVER_ID = "mqtt-udp";
-
     private final DelayService delayService;
-    private final PacketSourceServer receiver = new PacketSourceServer();;
+    private final PacketSourceServer receiver = new PacketSourceServer();
+
+    @Value("${server.id}")
+    private String serverId;
+    @Value("${metrics.topic}")
+    private String metricsTopic;
 
     @PostConstruct
     public void init() {
@@ -33,10 +36,10 @@ public class UdpMqttConfig {
 
     private void handlePacket(PublishPacket pub) {
         String topic = pub.getTopic();
-        if (METRICS_TOPIC.equals(topic)) {
+        if (metricsTopic.equals(topic)) {
             try {
                 long sentTs = Long.parseLong(pub.getValueString());
-                delayService.save(sentTs, SERVER_ID);
+                delayService.save(sentTs, serverId);
             } catch (NumberFormatException ignored) {}
         }
     }

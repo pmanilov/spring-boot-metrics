@@ -12,6 +12,10 @@ import java.time.Instant;
 public class DelayService {
     private final DelayRepository delayRepository;
 
+    public Double getAverageDelay(String serverId) {
+        return delayRepository.selectAverageDelay(serverId);
+    }
+
     public void save(long clientTime, String serverId) {
         Instant now = Instant.now();
         long nanoTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();

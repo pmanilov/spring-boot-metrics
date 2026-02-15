@@ -10,6 +10,10 @@ import org.springframework.stereotype.Service;
 public class PacketSizeService {
     private final PacketSizeRepository packetSizeRepository;
 
+    public Double getAveragePacketSize(String serverId) {
+        return packetSizeRepository.selectAveragePacketSize(serverId);
+    }
+
     public void save(PacketSize packetSize) {
         packetSizeRepository.save(packetSize);
     }

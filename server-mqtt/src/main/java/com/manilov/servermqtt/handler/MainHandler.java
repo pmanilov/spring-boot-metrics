@@ -7,6 +7,7 @@ import org.pcap4j.core.*;
 import org.pcap4j.packet.Packet;
 import org.pcap4j.packet.TcpPacket;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.EOFException;
@@ -16,13 +17,14 @@ import java.util.concurrent.TimeoutException;
 @Component
 @Slf4j
 public class MainHandler {
-
-    @Autowired
-    private PacketSizeService packetSizeService;
-
+    private final PacketSizeService packetSizeService;
     private PcapHandle handle;
 
-    public MainHandler() {
+    @Value("${server.id}")
+    private String serverId;
+
+    public MainHandler(PacketSizeService  packetSizeService) {
+        this.packetSizeService = packetSizeService;
         try {
             PcapNetworkInterface networkInterface = Pcaps.getDevByName("any");
             int snapshotLength = 65536;
@@ -45,9 +47,8 @@ public class MainHandler {
                         if (tcpPacket.getPayload() != null) {
                             byte[] mqttPayload = tcpPacket.getPayload().getRawData();
                             if (isMqttPublishMessage(mqttPayload)) {
-                                //String mqttContent = new String(mqttPayload);
                                 int totalPacketSize = packet.getRawData().length;
-                                packetSizeService.save(new PacketSize(Instant.now(), "mqtt-udp", totalPacketSize));
+                                packetSizeService.save(new PacketSize(Instant.now(), serverId, totalPacketSize));
                             }
                         }
                     }
