@@ -35,6 +35,8 @@ public class MqttConfiguration {
         MqttConnectOptions options = new MqttConnectOptions();
         options.setServerURIs(new String[]{url});
         options.setCleanSession(true);
+        options.setKeepAliveInterval(30);
+        options.setAutomaticReconnect(true);
         factory.setConnectionOptions(options);
         return factory;
     }

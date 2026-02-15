@@ -63,33 +63,62 @@ public class Main {
 
     private static Runnable getTaskMQTT(String clientId) {
         return () -> {
-            try (MqttDefaultFilePersistence persistence = new MqttDefaultFilePersistence("tmpFiles/" + clientId);
-                 MqttClient client = new MqttClient(Config.getBrokerUrl(), clientId, persistence)) {
-                MqttConnectOptions connOpts = new MqttConnectOptions();
-                connOpts.setCleanSession(true);
-                connOpts.setConnectionTimeout(10);
+            while (Config.isRunning) {
 
-                System.out.println("Connecting to broker: " + Config.getBrokerUrl());
-                client.connect(connOpts);
-                System.out.println("Connected: " + clientId);
+                try (MqttDefaultFilePersistence persistence = new MqttDefaultFilePersistence("tmpFiles/" + clientId);
+                     MqttClient client = new MqttClient(Config.getBrokerUrl(), clientId, persistence)) {
 
-                while (client.isConnected() && Config.isRunning) {
+                    MqttConnectOptions connOpts = new MqttConnectOptions();
+                    connOpts.setCleanSession(true);
 
-                    Instant now = Instant.now();
-                    long currentTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
-                    String message = String.valueOf(currentTime);
-                    MqttMessage mqttMessage = new MqttMessage(message.getBytes());
-                    mqttMessage.setQos(0);
-                    client.publish(Config.topicMqtt, mqttMessage);
-                    System.out.println(clientId + " published: " + message);
+                    connOpts.setKeepAliveInterval(5);
 
-                    long sleepNanos = getNextPoissonDelayNanos(Config.intensity);
-                    TimeUnit.NANOSECONDS.sleep(sleepNanos);
+                    connOpts.setAutomaticReconnect(false);
+
+                    System.out.println(clientId + ": Connecting to broker...");
+
+                    try {
+                        client.connect(connOpts);
+                        System.out.println(clientId + ": Connected!");
+
+                        while (client.isConnected() && Config.isRunning) {
+
+                            Instant now = Instant.now();
+                            long currentTime = now.getEpochSecond() * 1_000_000_000L + now.getNano();
+                            String message = String.valueOf(currentTime);
+
+                            MqttMessage mqttMessage = new MqttMessage(message.getBytes());
+                            mqttMessage.setQos(0);
+
+                            client.publish(Config.topicMqtt, mqttMessage);
+                            System.out.println(clientId + " published: " + message);
+
+                            long sleepNanos = getNextPoissonDelayNanos(Config.intensity);
+                            TimeUnit.NANOSECONDS.sleep(sleepNanos);
+                        }
+
+                    } catch (MqttException e) {
+                        System.err.println(clientId + " Connection lost/failed: " + e.getMessage() + " (" + e.getReasonCode() + ")");
+                    }
+
+                } catch (Exception e) {
+                    if (e instanceof InterruptedException) {
+                        break;
+                    }
+                    System.err.println(clientId + " Critical error: " + e.getMessage());
                 }
-                client.disconnect();
-            } catch (InterruptedException | MqttException e) {
-                System.err.println(e.getMessage());
+
+                if (Config.isRunning) {
+                    try {
+                        System.out.println(clientId + ": Reconnecting in 5 seconds...");
+                        TimeUnit.SECONDS.sleep(5);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
             }
+            System.out.println(clientId + " Thread Stopped");
         };
     }
 }
