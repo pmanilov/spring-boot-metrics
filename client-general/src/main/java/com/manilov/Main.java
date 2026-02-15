@@ -16,29 +16,34 @@ import java.util.concurrent.TimeUnit;
 public class Main {
 
     public static void main(String[] args) {
-        for (int i = 0; i < Config.countClients; i++) {
-            final String clientId = Config.clientIdPrefixMqtt + i;
-            Runnable taskMQTT = getTaskMQTT(clientId);
-            Thread.startVirtualThread(taskMQTT);
+        if (Config.enableMqtt) {
+            for (int i = 0; i < Config.countClients; i++) {
+                final String clientId = Config.clientIdPrefixMqtt + i;
+                Runnable taskMQTT = getTaskMQTT(clientId);
+                Thread.startVirtualThread(taskMQTT);
+            }
         }
 
-        Engine.setThrottle(0);
-        for (int i = 0; i < Config.countClients; i++) {
-            Thread.startVirtualThread(getTaskMqttUdp());
+        if (Config.enableMqttUdp) {
+            Engine.setThrottle(0);
+            for (int i = 0; i < Config.countClients; i++) {
+                Thread.startVirtualThread(getTaskMqttUdp());
+            }
         }
+    }
+
+    private static long getNextPoissonDelayNanos(double lambda) {
+        if (lambda <= 0) return Long.MAX_VALUE;
+
+        double random = ThreadLocalRandom.current().nextDouble();
+        double intervalSeconds = -Math.log(1.0 - random) / lambda;
+
+        return (long) (intervalSeconds * 1_000_000_000L);
     }
 
     private static Runnable getTaskMqttUdp() {
         return () -> {
-            while (!Thread.interrupted()) {
-                if (Config.paused) {
-                    try {
-                        TimeUnit.MILLISECONDS.sleep(200);
-                        continue;
-                    } catch (InterruptedException e) {
-                        break;
-                    }
-                }
+            while (!Thread.interrupted() && Config.isRunning) {
 
                 Instant now = Instant.now();
                 long currentTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
@@ -47,8 +52,8 @@ public class Main {
                     PublishPacket pkt = new PublishPacket(Config.topicMqttUdp, payload);
                     pkt.send();
                     System.out.println("MQTT-UDP sent: " + payload);
-                    Long random = ThreadLocalRandom.current().nextLong(Config.period) / 2;
-                    TimeUnit.MILLISECONDS.sleep(Config.period + random);
+                    long sleepNanos = getNextPoissonDelayNanos(Config.intensity);
+                    TimeUnit.NANOSECONDS.sleep(sleepNanos);
                 } catch (InterruptedException | IOException e) {
                     System.err.println(e.getMessage());
                 }
@@ -58,24 +63,17 @@ public class Main {
 
     private static Runnable getTaskMQTT(String clientId) {
         return () -> {
-            try (MqttDefaultFilePersistence persistence = new MqttDefaultFilePersistence("tmpFiles");
+            try (MqttDefaultFilePersistence persistence = new MqttDefaultFilePersistence("tmpFiles/" + clientId);
                  MqttClient client = new MqttClient(Config.getBrokerUrl(), clientId, persistence)) {
                 MqttConnectOptions connOpts = new MqttConnectOptions();
                 connOpts.setCleanSession(true);
+                connOpts.setConnectionTimeout(10);
 
                 System.out.println("Connecting to broker: " + Config.getBrokerUrl());
                 client.connect(connOpts);
                 System.out.println("Connected: " + clientId);
 
-                while (client.isConnected()) {
-                    if (Config.paused) {
-                        try {
-                            TimeUnit.MILLISECONDS.sleep(200);
-                            continue;
-                        } catch (InterruptedException e) {
-                            break;
-                        }
-                    }
+                while (client.isConnected() && Config.isRunning) {
 
                     Instant now = Instant.now();
                     long currentTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
@@ -85,9 +83,10 @@ public class Main {
                     client.publish(Config.topicMqtt, mqttMessage);
                     System.out.println(clientId + " published: " + message);
 
-                    Long random = ThreadLocalRandom.current().nextLong(Config.period) / 2;
-                    TimeUnit.MILLISECONDS.sleep(Config.period + random);
+                    long sleepNanos = getNextPoissonDelayNanos(Config.intensity);
+                    TimeUnit.NANOSECONDS.sleep(sleepNanos);
                 }
+                client.disconnect();
             } catch (InterruptedException | MqttException e) {
                 System.err.println(e.getMessage());
             }

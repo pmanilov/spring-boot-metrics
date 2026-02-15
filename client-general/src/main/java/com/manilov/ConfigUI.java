@@ -26,8 +26,10 @@ public class ConfigUI extends Application {
 
         VBox mqttBox = new VBox(10);
         mqttBox.setStyle("-fx-border-color: #cccccc; -fx-border-width: 1; -fx-padding: 10;");
-        Label mqttLabel = new Label("MQTT Configuration");
-        mqttLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14;");
+
+        CheckBox mqttEnableCb = new CheckBox("Enable MQTT");
+        mqttEnableCb.setSelected(Config.enableMqtt);
+        mqttEnableCb.setStyle("-fx-font-weight: bold; -fx-font-size: 14;");
 
         GridPane mqttGrid = new GridPane();
         mqttGrid.setVgap(8);
@@ -47,12 +49,14 @@ public class ConfigUI extends Application {
         mqttGrid.add(new Label("Client ID Prefix:"), 0, 3);
         mqttGrid.add(mqttClientIdField, 1, 3);
 
-        mqttBox.getChildren().addAll(mqttLabel, mqttGrid);
+        mqttBox.getChildren().addAll(mqttEnableCb, mqttGrid);
 
         VBox mqttUdpBox = new VBox(10);
         mqttUdpBox.setStyle("-fx-border-color: #cccccc; -fx-border-width: 1; -fx-padding: 10;");
-        Label mqttUdpLabel = new Label("MQTT-UDP Configuration");
-        mqttUdpLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14;");
+
+        CheckBox mqttUdpEnableCb = new CheckBox("Enable MQTT-UDP");
+        mqttUdpEnableCb.setSelected(Config.enableMqttUdp);
+        mqttUdpEnableCb.setStyle("-fx-font-weight: bold; -fx-font-size: 14;");
 
         GridPane mqttUdpGrid = new GridPane();
         mqttUdpGrid.setVgap(8);
@@ -63,7 +67,7 @@ public class ConfigUI extends Application {
         mqttUdpGrid.add(new Label("Topic:"), 0, 0);
         mqttUdpGrid.add(mqttUdpTopicField, 1, 0);
 
-        mqttUdpBox.getChildren().addAll(mqttUdpLabel, mqttUdpGrid);
+        mqttUdpBox.getChildren().addAll(mqttUdpEnableCb, mqttUdpGrid);
 
         HBox.setHgrow(mqttBox, Priority.ALWAYS);
         HBox.setHgrow(mqttUdpBox, Priority.ALWAYS);
@@ -82,11 +86,11 @@ public class ConfigUI extends Application {
         commonGrid.setVgap(8);
         commonGrid.setHgap(10);
 
-        TextField periodField = new TextField(String.valueOf(Config.period));
+        TextField intensityField = new TextField(String.valueOf(Config.intensity));
         TextField countField = new TextField(String.valueOf(Config.countClients));
 
-        commonGrid.add(new Label("Period (ms):"), 0, 0);
-        commonGrid.add(periodField, 1, 0);
+        commonGrid.add(new Label("Intensity (req/sec):"), 0, 0);
+        commonGrid.add(intensityField, 1, 0);
         commonGrid.add(new Label("Clients Count:"), 0, 1);
         commonGrid.add(countField, 1, 1);
 
@@ -117,20 +121,14 @@ public class ConfigUI extends Application {
 
         metricsBox.getChildren().addAll(metricsLabel, metricsGrid);
 
-        Button clearMetricsBtn = new Button("Clear");
-        clearMetricsBtn.setStyle("-fx-font-size: 14; -fx-padding: 8 20; " +
-                "-fx-border-width: 1; -fx-border-color: #555555;");
+        Button clearMetricsBtn = new Button("Clear Metrics");
         clearMetricsBtn.setOnAction(e -> clearMetrics());
 
         Button startBtn = new Button("Start");
-        startBtn.setStyle("-fx-font-size: 14; -fx-padding: 8 20; " +
-                "-fx-background-color: #50b355; -fx-text-fill: white; " +
-                "-fx-border-width: 1; -fx-border-color: #555555;");
+        startBtn.setStyle("-fx-font-size: 14; -fx-padding: 8 20; -fx-background-color: #50b355; -fx-text-fill: white;");
 
         Button stopBtn = new Button("Stop");
-        stopBtn.setStyle("-fx-font-size: 14; -fx-padding: 8 20; " +
-                "-fx-background-color: #dc443a; -fx-text-fill: white; " +
-                "-fx-border-width: 1; -fx-border-color: #555555;");
+        stopBtn.setStyle("-fx-font-size: 14; -fx-padding: 8 20; -fx-background-color: #dc443a; -fx-text-fill: white;");
         stopBtn.setDisable(true);
 
         HBox buttonBox = new HBox(10);
@@ -143,12 +141,17 @@ public class ConfigUI extends Application {
 
         startBtn.setOnAction(e -> {
             try {
+                Config.enableMqtt = mqttEnableCb.isSelected();
+                Config.enableMqttUdp = mqttUdpEnableCb.isSelected();
+
                 Config.hostname = mqttHostField.getText();
                 Config.mqttPort = Integer.parseInt(mqttPortField.getText());
                 Config.topicMqtt = mqttTopicField.getText();
                 Config.clientIdPrefixMqtt = mqttClientIdField.getText();
+
                 Config.topicMqttUdp = mqttUdpTopicField.getText();
-                Config.period = Long.parseLong(periodField.getText());
+
+                Config.intensity = Double.parseDouble(intensityField.getText());
                 Config.countClients = Integer.parseInt(countField.getText());
 
                 Config.metricsHostMqtt = metricsHostMqttField.getText();
@@ -156,15 +159,12 @@ public class ConfigUI extends Application {
                 Config.metricsHostMqttUdp = metricsHostMqttUdpField.getText();
                 Config.metricsPortMqttUdp = Integer.parseInt(metricsPortMqttUdpField.getText());
 
-                if (!Config.started) {
-                    Config.started = true;
-                    Config.paused = false;
-                    new Thread(() -> Main.main(new String[]{})).start();
-                    System.out.println("Publishing started");
-                } else {
-                    Config.paused = false;
-                    System.out.println("Publishing resumed");
-                }
+                Config.isRunning = true;
+
+
+                new Thread(() -> Main.main(new String[]{})).start();
+                System.out.println("Started. Intensity: " + Config.intensity);
+
                 startBtn.setDisable(true);
                 stopBtn.setDisable(false);
 
@@ -174,16 +174,13 @@ public class ConfigUI extends Application {
         });
 
         stopBtn.setOnAction(e -> {
-            if (Config.started) {
-                Config.paused = true;
-                System.out.println("Publishing paused");
-            }
+            Config.isRunning = false;
+            System.out.println("Stopped.");
             stopBtn.setDisable(true);
             startBtn.setDisable(false);
         });
 
-
-        Scene scene = new Scene(mainPane, 800, 600);
+        Scene scene = new Scene(mainPane, 800, 700);
         primaryStage.setScene(scene);
         primaryStage.show();
     }
