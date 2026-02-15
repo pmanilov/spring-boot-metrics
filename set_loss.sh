@@ -49,6 +49,10 @@ apply_loss_logic() {
        match ip src $WHITELIST_IP \
        flowid 1:1
 
+    tc filter add dev $VETH protocol ip parent 1:0 prio 1 u32 \
+           match ip sport 8123 0xffff \
+           flowid 1:1
+
     echo "Logic applied on $VETH:"
     echo "1. Traffic from $WHITELIST_IP -> CLEAN (Band 1:1)"
     echo "2. Everything else (including Gateway/JavaClient) -> LOSS ${LOSS}% (Band 1:2)"
