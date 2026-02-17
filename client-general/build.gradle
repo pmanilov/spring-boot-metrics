@@ -69,6 +69,26 @@ task checkJavaFX {
     }
 }
 
+task experimentJar(type: Jar) {
+    archiveBaseName = 'experiment-runner'
+
+    manifest {
+        attributes(
+                'Main-Class': 'com.manilov.ExperimentRunner'
+        )
+    }
+
+    from sourceSets.main.output
+
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
+}
+
 runWithJavaFX.dependsOn checkJavaFX
 
 test {
