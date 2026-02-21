@@ -1,2 +1,3 @@
 .lck
-experiment_results.csv
+*.csv
+*.png
