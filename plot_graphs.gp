@@ -11,22 +11,22 @@ do for [loss in loss_values] {
     set output sprintf('result_loss_%s_percent.png', loss)
     set multiplot layout 2,1 title sprintf("Потери пакетов: %s%%, Клиенты: %d", loss, target_clients) font ",16"
 
+    cmd_mqtt = sprintf("< awk -F, '$2==%s && $3==%d && $1==\"MQTT\"' experiment_results.csv", loss, target_clients)
+
+    cmd_udp  = sprintf("< awk -F, '$2==%s && $3==%d && $1==\"MQTT-UDP\"' experiment_results.csv", loss, target_clients)
+
     set title "Зависимость средней задержки от интенсивности"
     set xlabel "Интенсивность (запросов/с)"
     set ylabel "Задержка (мс)"
 
-    plot 'experiment_results.csv' using 4:($2==loss && $3==target_clients && stringcolumn(1) eq "MQTT" ? $5 : 1/0) \
-            with linespoints lw 2 pt 7 ps 1.5 lc rgb "red" title "MQTT", \
-         '' using 4:($2==loss && $3==target_clients && stringcolumn(1) eq "MQTT-UDP" ? $5 : 1/0) \
-            with linespoints lw 2 pt 5 ps 1.5 lc rgb "blue" title "MQTT-UDP"
+    plot cmd_mqtt using 4:5 with linespoints lw 2 pt 7 ps 1.5 lc rgb "red" title "MQTT", \
+         cmd_udp  using 4:5 with linespoints lw 2 pt 5 ps 1.5 lc rgb "blue" title "MQTT-UDP"
 
     set title "Зависимость среднего размера пакета от интенсивности"
     set ylabel "Размер пакета (байт)"
 
-    plot 'experiment_results.csv' using 4:($2==loss && $3==target_clients && stringcolumn(1) eq "MQTT" ? $6 : 1/0) \
-            with linespoints lw 2 pt 7 ps 1.5 lc rgb "red" title "MQTT", \
-         '' using 4:($2==loss && $3==target_clients && stringcolumn(1) eq "MQTT-UDP" ? $6 : 1/0) \
-            with linespoints lw 2 pt 5 ps 1.5 lc rgb "blue" title "MQTT-UDP"
+    plot cmd_mqtt using 4:6 with linespoints lw 2 pt 7 ps 1.5 lc rgb "red" title "MQTT", \
+         cmd_udp  using 4:6 with linespoints lw 2 pt 5 ps 1.5 lc rgb "blue" title "MQTT-UDP"
 
     unset multiplot
 }
