@@ -40,6 +40,7 @@ public class Main {
 
     static Runnable getTaskMqttUdp() {
         return () -> {
+            String overhead = "0".repeat(Config.bytesOverhead);
             while (!Thread.interrupted() && Config.isRunning) {
                 try {
                     TimeUnit.NANOSECONDS.sleep(getNextPoissonDelayNanos(Config.intensity));
@@ -49,11 +50,11 @@ public class Main {
                 }
                 Instant now = Instant.now();
                 long currentTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
-                String payload = String.valueOf(currentTime);
+                String payload = currentTime + "," + overhead;
                 try {
                     PublishPacket pkt = new PublishPacket(Config.topicMqttUdp, payload);
                     pkt.send();
-                    System.out.println("MQTT-UDP sent: " + payload);
+                    //System.out.println("MQTT-UDP sent: " + payload);
                 } catch (IOException e) {
                     System.err.println(e.getMessage());
                 }
@@ -81,17 +82,19 @@ public class Main {
                     client.connect(connOpts);
                     System.out.println(clientId + ": Connected!");
 
+                    String overhead = "0".repeat(Config.bytesOverhead);
+
                     while (client.isConnected() && Config.isRunning) {
                         TimeUnit.NANOSECONDS.sleep(getNextPoissonDelayNanos(Config.intensity));
                         Instant now = Instant.now();
                         long currentTime = now.getEpochSecond() * 1_000_000_000L + now.getNano();
-                        String message = String.valueOf(currentTime);
+                        String message = currentTime + "," + overhead;
 
                         MqttMessage mqttMessage = new MqttMessage(message.getBytes());
                         mqttMessage.setQos(0);
 
                         client.publish(Config.topicMqtt, mqttMessage);
-                        System.out.println(clientId + " published: " + message);
+                        //System.out.println(clientId + " published: " + message);
                     }
 
                 } catch (InterruptedException e) {

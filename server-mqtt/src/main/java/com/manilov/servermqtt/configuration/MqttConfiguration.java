@@ -75,7 +75,7 @@ public class MqttConfiguration {
     @Bean
     public MessageHandler messageHandler() {
         return message -> {
-            long sentTs = Long.parseLong(message.getPayload().toString());
+            long sentTs = Long.parseLong(message.getPayload().toString().split(",")[0]);
             delayService.save(sentTs, serverId);
         };
     }

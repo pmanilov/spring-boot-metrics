@@ -25,4 +25,6 @@ public class Config {
     public static String getBrokerUrl() {
         return "tcp://" + hostname + ":" + mqttPort;
     }
+
+    public static int bytesOverhead;
 }

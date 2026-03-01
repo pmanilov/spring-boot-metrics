@@ -89,6 +89,26 @@ task experimentJar(type: Jar) {
     exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
 }
 
+task experimentPacketSizeJar(type: Jar) {
+    archiveBaseName = 'experiment-packet-size'
+
+    manifest {
+        attributes(
+                'Main-Class': 'com.manilov.PacketSizeExperimentRunner'
+        )
+    }
+
+    from sourceSets.main.output
+
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
+}
+
 runWithJavaFX.dependsOn checkJavaFX
 
 test {

@@ -3,6 +3,7 @@ package com.manilov.servermqttudp.configuration;
 import com.manilov.common.service.DelayService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,6 +13,7 @@ import ru.dz.mqtt_udp.PublishPacket;
 
 import java.io.IOException;
 
+@Slf4j
 @Configuration
 @RequiredArgsConstructor
 public class UdpMqttConfig {
@@ -38,7 +40,7 @@ public class UdpMqttConfig {
         String topic = pub.getTopic();
         if (metricsTopic.equals(topic)) {
             try {
-                long sentTs = Long.parseLong(pub.getValueString());
+                long sentTs = Long.parseLong(pub.getValueString().split(",")[0]);
                 delayService.save(sentTs, serverId);
             } catch (NumberFormatException ignored) {}
         }
