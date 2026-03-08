@@ -13,11 +13,12 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class PacketSizeExperimentRunner {
-    private static final int[] BYTES_OVERHEADS = {0, 100, 400, 500, 600, 700, 800};
-    private static final int[] CLIENT_COUNTS = {1};
-    private static final double[] INTENSITIES = {1, 5, 10, 20, 30, 40, 50};
+    private static final int[] BYTES_OVERHEADS = {0, 10000, 20000, 30000, 40000, 50000, 60000, 65000};
+    private static final int[] CLIENT_COUNTS = { 1 };
+    private static final double[] INTENSITIES = { 1, 5, 10, 20, 30, 40, 50 };
 
-    private static final int TEST_DURATION_SECONDS = 300;
+    private static final int TEST_DURATION_SECONDS = 5;
+    private static final int WARMUP_DURATION_SECONDS = 600;
     private static final String CSV_FILE = "experiment_results_packet_size.csv";
 
     private static final HttpClient httpClient = HttpClient.newBuilder()
@@ -32,6 +33,8 @@ public class PacketSizeExperimentRunner {
             return;
         }
 
+        warmup();
+
         for (int overhead : BYTES_OVERHEADS) {
             for (int clients : CLIENT_COUNTS) {
                 for (double intensity : INTENSITIES) {
@@ -40,7 +43,7 @@ public class PacketSizeExperimentRunner {
                     runProtocolTest("MQTT", overhead, clients, intensity,
                             Config.metricsHostMqtt, Config.metricsPortMqtt);
 
-                    sleepSeconds(5);
+                    sleepSeconds(2);
 
                     runProtocolTest("MQTT-UDP", overhead, clients, intensity,
                             Config.metricsHostMqttUdp, Config.metricsPortMqttUdp);
@@ -50,7 +53,7 @@ public class PacketSizeExperimentRunner {
     }
 
     private static void runProtocolTest(String protocol, int overhead, int clients, double intensity,
-                                        String metricsHost, int metricsPort) {
+            String metricsHost, int metricsPort) {
 
         System.out.printf("[%s] Starting... (Overhead: %d, Clients: %d, Int: %.1f)\n",
                 protocol, overhead, clients, intensity);
@@ -128,7 +131,8 @@ public class PacketSizeExperimentRunner {
         return 0.0;
     }
 
-    private static void saveToCsv(String protocol, int overhead, int clients, double intensity, Double delay, Double size) {
+    private static void saveToCsv(String protocol, int overhead, int clients, double intensity, Double delay,
+            Double size) {
         try (PrintWriter writer = new PrintWriter(new FileWriter(CSV_FILE, true))) {
             writer.printf("%s,%d,%d,%.1f,%.4f,%.4f%n",
                     protocol, overhead, clients, intensity,
@@ -137,6 +141,39 @@ public class PacketSizeExperimentRunner {
         } catch (IOException e) {
             System.err.println("Error writing to CSV: " + e.getMessage());
         }
+    }
+
+    private static void warmup() {
+        System.out.printf("[WARMUP] Starting warm-up phase (%d minutes)...%n", WARMUP_DURATION_SECONDS / 60);
+
+        for (String protocol : new String[] { "MQTT", "MQTT-UDP" }) {
+            Config.isRunning = true;
+            Config.enableMqtt = protocol.equals("MQTT");
+            Config.enableMqttUdp = protocol.equals("MQTT-UDP");
+            Config.countClients = 1;
+            Config.intensity = 10.0;
+            Config.bytesOverhead = 0;
+
+            List<Thread> threads = new ArrayList<>();
+            if (Config.enableMqtt) {
+                String clientId = Config.clientIdPrefixMqtt + "_Warmup";
+                threads.add(Thread.ofVirtual().start(Main.getTaskMQTT(clientId)));
+            } else {
+                ru.dz.mqtt_udp.Engine.setThrottle(0);
+                threads.add(Thread.ofVirtual().start(Main.getTaskMqttUdp()));
+            }
+
+            sleepSeconds(WARMUP_DURATION_SECONDS / 2);
+
+            Config.isRunning = false;
+            threads.forEach(Thread::interrupt);
+        }
+
+        // Clear server-side metrics accumulated during warm-up
+        clearServerMetrics(Config.metricsHostMqtt, Config.metricsPortMqtt);
+        clearServerMetrics(Config.metricsHostMqttUdp, Config.metricsPortMqttUdp);
+
+        System.out.println("[WARMUP] Done. Starting main experiment.");
     }
 
     private static void sleepSeconds(int seconds) {

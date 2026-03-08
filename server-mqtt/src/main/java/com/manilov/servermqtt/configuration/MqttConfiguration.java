@@ -1,6 +1,7 @@
 package com.manilov.servermqtt.configuration;
 
 import com.manilov.common.service.DelayService;
+import com.manilov.servermqtt.handler.PacketSizeHandler;
 import lombok.RequiredArgsConstructor;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +16,7 @@ import org.springframework.integration.mqtt.core.MqttPahoClientFactory;
 import org.springframework.integration.mqtt.inbound.MqttPahoMessageDrivenChannelAdapter;
 import org.springframework.integration.mqtt.outbound.MqttPahoMessageHandler;
 import org.springframework.integration.mqtt.support.DefaultPahoMessageConverter;
+import org.springframework.integration.mqtt.support.MqttHeaders;
 import org.springframework.integration.stream.CharacterStreamReadingMessageSource;
 import org.springframework.messaging.MessageHandler;
 
@@ -22,6 +24,7 @@ import org.springframework.messaging.MessageHandler;
 @RequiredArgsConstructor
 public class MqttConfiguration {
     private final DelayService delayService;
+    private final PacketSizeHandler packetSizeHandler;
 
     @Value("${mqtt.url}")
     private String url;
@@ -34,7 +37,7 @@ public class MqttConfiguration {
     public MqttPahoClientFactory mqttClientFactory() {
         DefaultMqttPahoClientFactory factory = new DefaultMqttPahoClientFactory();
         MqttConnectOptions options = new MqttConnectOptions();
-        options.setServerURIs(new String[]{url});
+        options.setServerURIs(new String[] { url });
         options.setCleanSession(true);
         options.setKeepAliveInterval(30);
         options.setAutomaticReconnect(true);
@@ -45,7 +48,7 @@ public class MqttConfiguration {
     @Bean
     public IntegrationFlow mqttOutFlow() {
         return IntegrationFlow.from(CharacterStreamReadingMessageSource.stdin(),
-                        e -> e.poller(Pollers.fixedDelay(1000)))
+                e -> e.poller(Pollers.fixedDelay(1000)))
                 .transform(p -> p + " sent to MQTT")
                 .handle(mqttOutbound())
                 .get();
@@ -75,8 +78,13 @@ public class MqttConfiguration {
     @Bean
     public MessageHandler messageHandler() {
         return message -> {
-            long sentTs = Long.parseLong(message.getPayload().toString().split(",")[0]);
+            String payloadStr = message.getPayload().toString();
+            long sentTs = Long.parseLong(payloadStr.split(",")[0]);
             delayService.save(sentTs, serverId);
+
+            String topic = (String) message.getHeaders().get(MqttHeaders.RECEIVED_TOPIC);
+            byte[] payloadBytes = payloadStr.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            packetSizeHandler.handleMessage(topic != null ? topic : metricsTopic, payloadBytes);
         };
     }
 

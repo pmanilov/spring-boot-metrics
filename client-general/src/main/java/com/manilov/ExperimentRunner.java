@@ -13,11 +13,12 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class ExperimentRunner {
-    private static final int[] LOSS_PERCENTAGES = {0, 10, 20, 30, 50, 70, 80};
-    private static final int[] CLIENT_COUNTS = {1};
-    private static final double[] INTENSITIES = {1, 5, 10, 20, 30, 40, 50};
+    private static final int[] LOSS_PERCENTAGES = { 0, 10, 20, 30, 50, 70, 80 };
+    private static final int[] CLIENT_COUNTS = { 1 };
+    private static final double[] INTENSITIES = { 1, 5, 10, 20, 30, 40, 50 };
 
     private static final int TEST_DURATION_SECONDS = 300;
+    private static final int WARMUP_DURATION_SECONDS = 600;
     private static final String CSV_FILE = "experiment_results.csv";
 
     private static final String SCRIPT_SET_LOSS = "./set_loss.sh";
@@ -34,6 +35,8 @@ public class ExperimentRunner {
             System.err.println("Could not create CSV file: " + e.getMessage());
             return;
         }
+
+        warmup();
 
         for (int loss : LOSS_PERCENTAGES) {
             if (loss == 0) {
@@ -64,7 +67,7 @@ public class ExperimentRunner {
     }
 
     private static void runProtocolTest(String protocol, int loss, int clients, double intensity,
-                                        String metricsHost, int metricsPort) {
+            String metricsHost, int metricsPort) {
 
         System.out.printf("[%s] Starting... (Loss: %d%%, Clients: %d, Int: %.1f)\n",
                 protocol, loss, clients, intensity);
@@ -172,6 +175,38 @@ public class ExperimentRunner {
             System.err.println("Script execution failed: " + e.getMessage());
             return false;
         }
+    }
+
+    private static void warmup() {
+        System.out.printf("[WARMUP] Starting warm-up phase (%d minutes)...%n", WARMUP_DURATION_SECONDS / 60);
+
+        for (String protocol : new String[] { "MQTT", "MQTT-UDP" }) {
+            Config.isRunning = true;
+            Config.enableMqtt = protocol.equals("MQTT");
+            Config.enableMqttUdp = protocol.equals("MQTT-UDP");
+            Config.countClients = 1;
+            Config.intensity = 10.0;
+
+            List<Thread> threads = new ArrayList<>();
+            if (Config.enableMqtt) {
+                String clientId = Config.clientIdPrefixMqtt + "_Warmup";
+                threads.add(Thread.ofVirtual().start(Main.getTaskMQTT(clientId)));
+            } else {
+                ru.dz.mqtt_udp.Engine.setThrottle(0);
+                threads.add(Thread.ofVirtual().start(Main.getTaskMqttUdp()));
+            }
+
+            sleepSeconds(WARMUP_DURATION_SECONDS / 2);
+
+            Config.isRunning = false;
+            threads.forEach(Thread::interrupt);
+        }
+
+        // Clear server-side metrics accumulated during warm-up
+        clearServerMetrics(Config.metricsHostMqtt, Config.metricsPortMqtt);
+        clearServerMetrics(Config.metricsHostMqttUdp, Config.metricsPortMqttUdp);
+
+        System.out.println("[WARMUP] Done. Starting main experiment.");
     }
 
     private static void sleepSeconds(int seconds) {

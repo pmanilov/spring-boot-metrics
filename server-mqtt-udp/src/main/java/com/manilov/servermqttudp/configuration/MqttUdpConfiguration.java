@@ -1,6 +1,7 @@
 package com.manilov.servermqttudp.configuration;
 
 import com.manilov.common.service.DelayService;
+import com.manilov.servermqttudp.handler.PacketSizeHandler;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,12 +13,14 @@ import ru.dz.mqtt_udp.PacketSourceServer;
 import ru.dz.mqtt_udp.PublishPacket;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-public class UdpMqttConfig {
+public class MqttUdpConfiguration {
     private final DelayService delayService;
+    private final PacketSizeHandler packetSizeHandler;
     private final PacketSourceServer receiver = new PacketSourceServer();
 
     @Value("${server.id}")
@@ -40,9 +43,14 @@ public class UdpMqttConfig {
         String topic = pub.getTopic();
         if (metricsTopic.equals(topic)) {
             try {
-                long sentTs = Long.parseLong(pub.getValueString().split(",")[0]);
+                String valueStr = pub.getValueString();
+                long sentTs = Long.parseLong(valueStr.split(",")[0]);
                 delayService.save(sentTs, serverId);
-            } catch (NumberFormatException ignored) {}
+
+                byte[] payloadBytes = valueStr.getBytes(StandardCharsets.UTF_8);
+                packetSizeHandler.handleMessage(topic, payloadBytes);
+            } catch (NumberFormatException ignored) {
+            }
         }
     }
 

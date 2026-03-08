@@ -7,6 +7,6 @@ RUN apt-get install -y libpcap-dev
 RUN apt install -y openjdk-21-jdk
 RUN mkdir /app
 WORKDIR /app
-COPY server-mqtt-udp/build/libs/server-mqtt-udp-0.0.2-SNAPSHOT.jar /app.jar
+COPY server-mqtt-udp/build/libs/server-mqtt-udp-1.0.0.jar /app.jar
 EXPOSE 8082
 ENTRYPOINT ["java", "-jar", "/app.jar"]
