@@ -23,7 +23,7 @@ jar {
 }
 
 dependencies {
-    implementation name: 'mqtt_udp-0.5.0'
+    implementation name: 'mqtt_udp-0.5.1'
     implementation group: 'org.eclipse.paho', name: 'org.eclipse.paho.client.mqttv3', version: '1.2.5'
     implementation('org.controlsfx:controlsfx:11.1.2')
     testImplementation platform('org.junit:junit-bom:5.9.1')

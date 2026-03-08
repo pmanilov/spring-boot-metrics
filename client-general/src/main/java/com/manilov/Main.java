@@ -40,7 +40,7 @@ public class Main {
 
     static Runnable getTaskMqttUdp() {
         return () -> {
-            String overhead = "0".repeat(Config.bytesOverhead);
+            String overhead = Config.bytesOverhead > 0 ? "," + "0".repeat(Config.bytesOverhead - 1) : "";
             while (!Thread.interrupted() && Config.isRunning) {
                 try {
                     TimeUnit.NANOSECONDS.sleep(getNextPoissonDelayNanos(Config.intensity));
@@ -50,7 +50,7 @@ public class Main {
                 }
                 Instant now = Instant.now();
                 long currentTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
-                String payload = currentTime + "," + overhead;
+                String payload = currentTime + overhead;
                 try {
                     PublishPacket pkt = new PublishPacket(Config.topicMqttUdp, payload);
                     pkt.send();
@@ -82,13 +82,13 @@ public class Main {
                     client.connect(connOpts);
                     System.out.println(clientId + ": Connected!");
 
-                    String overhead = "0".repeat(Config.bytesOverhead);
+                    String overhead = Config.bytesOverhead > 0 ? "," + "0".repeat(Config.bytesOverhead - 1) : "";
 
                     while (client.isConnected() && Config.isRunning) {
                         TimeUnit.NANOSECONDS.sleep(getNextPoissonDelayNanos(Config.intensity));
                         Instant now = Instant.now();
                         long currentTime = now.getEpochSecond() * 1_000_000_000L + now.getNano();
-                        String message = currentTime + "," + overhead;
+                        String message = currentTime + overhead;
 
                         MqttMessage mqttMessage = new MqttMessage(message.getBytes());
                         mqttMessage.setQos(0);
