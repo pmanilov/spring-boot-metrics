@@ -13,11 +13,11 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class PacketSizeExperimentRunner {
-    private static final int[] BYTES_OVERHEADS = {0, 10000, 20000, 30000, 40000, 50000, 60000, 65000};
+    private static final int[] BYTES_OVERHEADS = {0, 10000, 20000, 30000, 40000, 50000, 60000};
     private static final int[] CLIENT_COUNTS = { 1 };
     private static final double[] INTENSITIES = { 1, 5, 10, 20, 30, 40, 50 };
 
-    private static final int TEST_DURATION_SECONDS = 5;
+    private static final int TEST_DURATION_SECONDS = 300;
     private static final int WARMUP_DURATION_SECONDS = 600;
     private static final String CSV_FILE = "experiment_results_packet_size.csv";
 
