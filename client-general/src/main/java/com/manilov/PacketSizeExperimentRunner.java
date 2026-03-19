@@ -13,11 +13,10 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class PacketSizeExperimentRunner {
-    private static final int[] BYTES_OVERHEADS = {0, 10000, 20000, 30000, 40000, 50000, 60000};
+    private static final int[] BYTES_OVERHEADS = { 0, 10000, 20000, 30000, 40000, 50000, 60000 };
     private static final int[] CLIENT_COUNTS = { 1 };
-    private static final double[] INTENSITIES = { 1, 5, 10, 20, 30, 40, 50 };
-
-    private static final int TEST_DURATION_SECONDS = 300;
+    private static final double[] INTENSITIES = { 5, 10, 20, 30, 40, 50 };
+    private static final int[] TEST_DURATIONS_SECONDS = { 3000, 1500, 750, 500, 500, 500};
     private static final int WARMUP_DURATION_SECONDS = 600;
     private static final String CSV_FILE = "experiment_results_packet_size.csv";
 
@@ -37,15 +36,15 @@ public class PacketSizeExperimentRunner {
 
         for (int overhead : BYTES_OVERHEADS) {
             for (int clients : CLIENT_COUNTS) {
-                for (double intensity : INTENSITIES) {
+                for (int i = 0; i < INTENSITIES.length; i++) {
+                    double intensity = INTENSITIES[i];
+                    int duration = TEST_DURATIONS_SECONDS[i];
                     Config.intensity = intensity;
                     Config.countClients = clients;
-                    runProtocolTest("MQTT", overhead, clients, intensity,
+                    runProtocolTest("MQTT", overhead, clients, intensity, duration,
                             Config.metricsHostMqtt, Config.metricsPortMqtt);
 
-                    sleepSeconds(2);
-
-                    runProtocolTest("MQTT-UDP", overhead, clients, intensity,
+                    runProtocolTest("MQTT-UDP", overhead, clients, intensity, duration,
                             Config.metricsHostMqttUdp, Config.metricsPortMqttUdp);
                 }
             }
@@ -53,7 +52,7 @@ public class PacketSizeExperimentRunner {
     }
 
     private static void runProtocolTest(String protocol, int overhead, int clients, double intensity,
-            String metricsHost, int metricsPort) {
+            int durationSeconds, String metricsHost, int metricsPort) {
 
         System.out.printf("[%s] Starting... (Overhead: %d, Clients: %d, Int: %.1f)\n",
                 protocol, overhead, clients, intensity);
@@ -82,7 +81,7 @@ public class PacketSizeExperimentRunner {
             }
         }
 
-        sleepSeconds(TEST_DURATION_SECONDS);
+        sleepSeconds(durationSeconds);
 
         Config.isRunning = false;
 
@@ -96,6 +95,8 @@ public class PacketSizeExperimentRunner {
         System.out.printf("[%s] Result: Delay=%.2f ms, Size=%.2f bytes\n", protocol, avgDelay, avgPacketSize);
 
         saveToCsv(protocol, overhead, clients, intensity, avgDelay, avgPacketSize);
+
+        sleepSeconds(5);
     }
 
     private static void clearServerMetrics(String host, int port) {
@@ -169,7 +170,6 @@ public class PacketSizeExperimentRunner {
             threads.forEach(Thread::interrupt);
         }
 
-        // Clear server-side metrics accumulated during warm-up
         clearServerMetrics(Config.metricsHostMqtt, Config.metricsPortMqtt);
         clearServerMetrics(Config.metricsHostMqttUdp, Config.metricsPortMqttUdp);
 
