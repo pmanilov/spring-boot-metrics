@@ -61,17 +61,6 @@ services:
     networks:
       - mosquitto
 
-  grafana:
-    image: grafana/grafana
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
-    networks:
-      - mosquitto
-    depends_on:
-      - clickhouse
-
 networks:
   mosquitto:
     driver: bridge
