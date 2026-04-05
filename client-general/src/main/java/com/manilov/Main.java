@@ -6,6 +6,8 @@ import ru.dz.mqtt_udp.Engine;
 import ru.dz.mqtt_udp.PublishPacket;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.time.Instant;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -18,15 +20,15 @@ public class Main {
     public static final AtomicLong sentCountMqttQuic = new AtomicLong(0);
 
     public static void main(String[] args) {
-        if (Config.enableMqtt) {
+        if (Config.mqtt.enabled) {
             for (int i = 0; i < Config.countClients; i++) {
-                final String clientId = Config.clientIdPrefixMqtt + i;
+                final String clientId = Config.mqtt.clientIdPrefix + i;
                 Runnable taskMQTT = getTaskMQTT(clientId);
                 Thread.startVirtualThread(taskMQTT);
             }
         }
 
-        if (Config.enableMqttUdp) {
+        if (Config.mqttUdp.enabled) {
             Engine.setThrottle(0);
             for (int i = 0; i < Config.countClients; i++) {
                 Thread.startVirtualThread(getTaskMqttUdp());
@@ -65,7 +67,7 @@ public class Main {
                     long currentTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
                     String payload = currentTime + overhead;
                     try {
-                        session.publish(Config.topicMqttQuic, payload.getBytes());
+                        session.publish(Config.mqttQuic.topic, payload.getBytes());
                         sentCountMqttQuic.incrementAndGet();
                     } catch (Exception e) {
                         System.err.println("MQTT-QUIC publish error: " + e.getMessage());
@@ -84,6 +86,13 @@ public class Main {
     static Runnable getTaskMqttUdp() {
         return () -> {
             String overhead = Config.bytesOverhead > 0 ? "," + "0".repeat(Config.bytesOverhead - 1) : "";
+            final InetAddress target;
+            try {
+                target = InetAddress.getByName(Config.mqttUdp.host);
+            } catch (UnknownHostException e) {
+                System.err.println("MQTT-UDP: cannot resolve host " + Config.mqttUdp.host + ": " + e.getMessage());
+                return;
+            }
             while (!Thread.interrupted() && Config.isRunning) {
                 try {
                     TimeUnit.NANOSECONDS.sleep(getNextPoissonDelayNanos(Config.intensity));
@@ -95,10 +104,9 @@ public class Main {
                 long currentTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
                 String payload = currentTime + overhead;
                 try {
-                    PublishPacket pkt = new PublishPacket(Config.topicMqttUdp, payload);
-                    pkt.send();
+                    PublishPacket pkt = new PublishPacket(Config.mqttUdp.topic, payload);
+                    pkt.send(target);
                     sentCountMqttUdp.incrementAndGet();
-                    //System.out.println("MQTT-UDP sent: " + payload);
                 } catch (IOException e) {
                     System.err.println(e.getMessage());
                 }
@@ -111,7 +119,7 @@ public class Main {
             while (!Thread.interrupted() && Config.isRunning) {
 
                 try (MqttDefaultFilePersistence persistence = new MqttDefaultFilePersistence("tmpFiles/" + clientId);
-                     MqttClient client = new MqttClient(Config.getBrokerUrl(), clientId, persistence)) {
+                     MqttClient client = new MqttClient(Config.mqtt.brokerUrl(), clientId, persistence)) {
 
                     MqttConnectOptions connOpts = new MqttConnectOptions();
                     connOpts.setCleanSession(true);
@@ -137,7 +145,7 @@ public class Main {
                         MqttMessage mqttMessage = new MqttMessage(message.getBytes());
                         mqttMessage.setQos(0);
 
-                        client.publish(Config.topicMqtt, mqttMessage);
+                        client.publish(Config.mqtt.topic, mqttMessage);
                         sentCountMqtt.incrementAndGet();
                         //System.out.println(clientId + " published: " + message);
                     }

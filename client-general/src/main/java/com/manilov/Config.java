@@ -1,39 +1,50 @@
 package com.manilov;
 
 public class Config {
-    public static String hostname = "localhost";
-
-    public static Double intensity = 5.0;
-
-    public static Integer countClients = 1;
-
-    public static boolean enableMqtt = true;
-    public static boolean enableMqttUdp = true;
-    public static boolean enableMqttQuic = true;
-
-    public static Integer mqttPort = 1884;
-    public static String topicMqtt = "metricsTopic";
-    public static String clientIdPrefixMqtt = "JavaMqttPublisher";
-    public static String topicMqttUdp = "metricsTopic";
-    public static String topicMqttQuic = "metricsTopic";
-    public static String clientIdPrefixMqttQuic = "JavaMqttQuicPublisher";
-
-    public static String metricsHostMqtt = "localhost";
-    public static int metricsPortMqtt = 8081;
-    public static String metricsHostMqttUdp = "localhost";
-    public static int metricsPortMqttUdp = 8082;
-    public static String metricsHostMqttQuic = "localhost";
-    public static int metricsPortMqttQuic = 8083;
-
-    public static String quicHost = "localhost";
-    public static int quicPort = 1885;
-    public static String quicAlpn = "mqtt";
-
+    // Runtime state
     public static volatile boolean isRunning = false;
 
-    public static String getBrokerUrl() {
-        return "tcp://" + hostname + ":" + mqttPort;
+    // Common experiment parameters
+    public static Double intensity = 5.0;
+    public static Integer countClients = 1;
+    public static int bytesOverhead;
+
+    // Per-protocol settings
+    public static final Mqtt mqtt = new Mqtt();
+    public static final MqttUdp mqttUdp = new MqttUdp();
+    public static final MqttQuic mqttQuic = new MqttQuic();
+
+    public static final class Mqtt {
+        public boolean enabled = true;
+        public String brokerHost = "localhost";
+        public int brokerPort = 1884;
+        public String topic = "metricsTopic";
+        public String clientIdPrefix = "JavaMqttPublisher";
+        public String metricsHost = "localhost";
+        public int metricsPort = 8081;
+
+        public String brokerUrl() {
+            return "tcp://" + brokerHost + ":" + brokerPort;
+        }
     }
 
-    public static int bytesOverhead;
+    public static final class MqttUdp {
+        public boolean enabled = true;
+        // Unicast target for PublishPacket.send(addr). Set to the remote UDP server VPS.
+        public String host = "localhost";
+        public String topic = "metricsTopic";
+        public String metricsHost = "localhost";
+        public int metricsPort = 8082;
+    }
+
+    public static final class MqttQuic {
+        public boolean enabled = true;
+        public String host = "localhost";
+        public int port = 1885;
+        public String alpn = "mqtt";
+        public String topic = "metricsTopic";
+        public String clientIdPrefix = "JavaMqttQuicPublisher";
+        public String metricsHost = "localhost";
+        public int metricsPort = 8083;
+    }
 }

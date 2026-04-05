@@ -55,10 +55,10 @@ public class ExperimentRunner {
                     Config.countClients = clients;
 
                     runProtocolTest("MQTT", loss, clients, intensity, duration,
-                            Config.metricsHostMqtt, Config.metricsPortMqtt);
+                            Config.mqtt.metricsHost, Config.mqtt.metricsPort);
 
                     runProtocolTest("MQTT-UDP", loss, clients, intensity, duration,
-                            Config.metricsHostMqttUdp, Config.metricsPortMqttUdp);
+                            Config.mqttUdp.metricsHost, Config.mqttUdp.metricsPort);
                 }
             }
         }
@@ -75,19 +75,19 @@ public class ExperimentRunner {
         clearServerMetrics(metricsHost, metricsPort);
 
         Config.isRunning = true;
-        Config.enableMqtt = protocol.equals("MQTT");
-        Config.enableMqttUdp = protocol.equals("MQTT-UDP");
+        Config.mqtt.enabled = protocol.equals("MQTT");
+        Config.mqttUdp.enabled = protocol.equals("MQTT-UDP");
         Config.countClients = clients;
 
         List<Thread> threads = new ArrayList<>();
 
-        if (Config.enableMqtt) {
+        if (Config.mqtt.enabled) {
             for (int i = 0; i < Config.countClients; i++) {
-                String clientId = Config.clientIdPrefixMqtt + "_Test_" + i;
+                String clientId = Config.mqtt.clientIdPrefix + "_Test_" + i;
                 Thread t = Thread.ofVirtual().start(Main.getTaskMQTT(clientId));
                 threads.add(t);
             }
-        } else if (Config.enableMqttUdp) {
+        } else if (Config.mqttUdp.enabled) {
             ru.dz.mqtt_udp.Engine.setThrottle(0);
             for (int i = 0; i < Config.countClients; i++) {
                 Thread t = Thread.ofVirtual().start(Main.getTaskMqttUdp());
@@ -184,14 +184,14 @@ public class ExperimentRunner {
 
         for (String protocol : new String[] { "MQTT", "MQTT-UDP" }) {
             Config.isRunning = true;
-            Config.enableMqtt = protocol.equals("MQTT");
-            Config.enableMqttUdp = protocol.equals("MQTT-UDP");
+            Config.mqtt.enabled = protocol.equals("MQTT");
+            Config.mqttUdp.enabled = protocol.equals("MQTT-UDP");
             Config.countClients = 1;
             Config.intensity = 10.0;
 
             List<Thread> threads = new ArrayList<>();
-            if (Config.enableMqtt) {
-                String clientId = Config.clientIdPrefixMqtt + "_Warmup";
+            if (Config.mqtt.enabled) {
+                String clientId = Config.mqtt.clientIdPrefix + "_Warmup";
                 threads.add(Thread.ofVirtual().start(Main.getTaskMQTT(clientId)));
             } else {
                 ru.dz.mqtt_udp.Engine.setThrottle(0);
@@ -204,8 +204,8 @@ public class ExperimentRunner {
             threads.forEach(Thread::interrupt);
         }
 
-        clearServerMetrics(Config.metricsHostMqtt, Config.metricsPortMqtt);
-        clearServerMetrics(Config.metricsHostMqttUdp, Config.metricsPortMqttUdp);
+        clearServerMetrics(Config.mqtt.metricsHost, Config.mqtt.metricsPort);
+        clearServerMetrics(Config.mqttUdp.metricsHost, Config.mqttUdp.metricsPort);
 
         System.out.println("[WARMUP] Done. Starting main experiment.");
     }

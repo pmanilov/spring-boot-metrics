@@ -57,13 +57,13 @@ public class PacketLossExperimentRunner {
                 Config.countClients = clients;
 
                 runProtocolTest("MQTT", clients, intensity, duration,
-                        Config.metricsHostMqtt, Config.metricsPortMqtt);
+                        Config.mqtt.metricsHost, Config.mqtt.metricsPort);
 
                 runProtocolTest("MQTT-UDP", clients, intensity, duration,
-                        Config.metricsHostMqttUdp, Config.metricsPortMqttUdp);
+                        Config.mqttUdp.metricsHost, Config.mqttUdp.metricsPort);
 
                 runProtocolTest("MQTT-QUIC", clients, intensity, duration,
-                        Config.metricsHostMqttQuic, Config.metricsPortMqttQuic);
+                        Config.mqttQuic.metricsHost, Config.mqttQuic.metricsPort);
             }
         }
 
@@ -83,29 +83,29 @@ public class PacketLossExperimentRunner {
         Main.sentCountMqttQuic.set(0);
 
         Config.isRunning = true;
-        Config.enableMqtt = protocol.equals("MQTT");
-        Config.enableMqttUdp = protocol.equals("MQTT-UDP");
-        Config.enableMqttQuic = protocol.equals("MQTT-QUIC");
+        Config.mqtt.enabled = protocol.equals("MQTT");
+        Config.mqttUdp.enabled = protocol.equals("MQTT-UDP");
+        Config.mqttQuic.enabled = protocol.equals("MQTT-QUIC");
         Config.countClients = clients;
         Config.bytesOverhead = 0;
 
         List<Thread> threads = new ArrayList<>();
 
-        if (Config.enableMqtt) {
+        if (Config.mqtt.enabled) {
             for (int i = 0; i < Config.countClients; i++) {
-                String clientId = Config.clientIdPrefixMqtt + "_Loss_" + i;
+                String clientId = Config.mqtt.clientIdPrefix + "_Loss_" + i;
                 Thread t = Thread.ofVirtual().start(Main.getTaskMQTT(clientId));
                 threads.add(t);
             }
-        } else if (Config.enableMqttUdp) {
+        } else if (Config.mqttUdp.enabled) {
             ru.dz.mqtt_udp.Engine.setThrottle(0);
             for (int i = 0; i < Config.countClients; i++) {
                 Thread t = Thread.ofVirtual().start(Main.getTaskMqttUdp());
                 threads.add(t);
             }
-        } else if (Config.enableMqttQuic) {
+        } else if (Config.mqttQuic.enabled) {
             for (int i = 0; i < Config.countClients; i++) {
-                String clientId = Config.clientIdPrefixMqttQuic + "_Loss_" + i;
+                String clientId = Config.mqttQuic.clientIdPrefix + "_Loss_" + i;
                 Thread t = Thread.ofVirtual().start(Main.getTaskMqttQuic(clientId));
                 threads.add(t);
             }
@@ -123,9 +123,9 @@ public class PacketLossExperimentRunner {
         sleepSeconds(DRAIN_SECONDS);
 
         long sent;
-        if (Config.enableMqtt) {
+        if (Config.mqtt.enabled) {
             sent = Main.sentCountMqtt.get();
-        } else if (Config.enableMqttUdp) {
+        } else if (Config.mqttUdp.enabled) {
             sent = Main.sentCountMqttUdp.get();
         } else {
             sent = Main.sentCountMqttQuic.get();
@@ -226,22 +226,22 @@ public class PacketLossExperimentRunner {
 
         for (String protocol : new String[] { "MQTT", "MQTT-UDP", "MQTT-QUIC" }) {
             Config.isRunning = true;
-            Config.enableMqtt = protocol.equals("MQTT");
-            Config.enableMqttUdp = protocol.equals("MQTT-UDP");
-            Config.enableMqttQuic = protocol.equals("MQTT-QUIC");
+            Config.mqtt.enabled = protocol.equals("MQTT");
+            Config.mqttUdp.enabled = protocol.equals("MQTT-UDP");
+            Config.mqttQuic.enabled = protocol.equals("MQTT-QUIC");
             Config.countClients = 1;
             Config.intensity = 100.0;
             Config.bytesOverhead = 0;
 
             List<Thread> threads = new ArrayList<>();
-            if (Config.enableMqtt) {
-                String clientId = Config.clientIdPrefixMqtt + "_LossWarmup";
+            if (Config.mqtt.enabled) {
+                String clientId = Config.mqtt.clientIdPrefix + "_LossWarmup";
                 threads.add(Thread.ofVirtual().start(Main.getTaskMQTT(clientId)));
-            } else if (Config.enableMqttUdp) {
+            } else if (Config.mqttUdp.enabled) {
                 ru.dz.mqtt_udp.Engine.setThrottle(0);
                 threads.add(Thread.ofVirtual().start(Main.getTaskMqttUdp()));
-            } else if (Config.enableMqttQuic) {
-                String clientId = Config.clientIdPrefixMqttQuic + "_LossWarmup";
+            } else if (Config.mqttQuic.enabled) {
+                String clientId = Config.mqttQuic.clientIdPrefix + "_LossWarmup";
                 threads.add(Thread.ofVirtual().start(Main.getTaskMqttQuic(clientId)));
             }
 
@@ -251,12 +251,12 @@ public class PacketLossExperimentRunner {
             threads.forEach(Thread::interrupt);
         }
 
-        clearServerMetrics(Config.metricsHostMqtt, Config.metricsPortMqtt);
-        clearServerMetrics(Config.metricsHostMqttUdp, Config.metricsPortMqttUdp);
-        clearServerMetrics(Config.metricsHostMqttQuic, Config.metricsPortMqttQuic);
-        resetServerCount(Config.metricsHostMqtt, Config.metricsPortMqtt);
-        resetServerCount(Config.metricsHostMqttUdp, Config.metricsPortMqttUdp);
-        resetServerCount(Config.metricsHostMqttQuic, Config.metricsPortMqttQuic);
+        clearServerMetrics(Config.mqtt.metricsHost, Config.mqtt.metricsPort);
+        clearServerMetrics(Config.mqttUdp.metricsHost, Config.mqttUdp.metricsPort);
+        clearServerMetrics(Config.mqttQuic.metricsHost, Config.mqttQuic.metricsPort);
+        resetServerCount(Config.mqtt.metricsHost, Config.mqtt.metricsPort);
+        resetServerCount(Config.mqttUdp.metricsHost, Config.mqttUdp.metricsPort);
+        resetServerCount(Config.mqttQuic.metricsHost, Config.mqttQuic.metricsPort);
 
         System.out.println("[WARMUP] Done. Starting main experiment.");
     }

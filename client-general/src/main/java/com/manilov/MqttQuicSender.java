@@ -91,7 +91,7 @@ public final class MqttQuicSender {
         synchronized (MqttQuicSender.class) {
             if (INSTANCE == null) {
                 try {
-                    INSTANCE = new MqttQuicSender(Config.quicHost, Config.quicPort, Config.quicAlpn);
+                    INSTANCE = new MqttQuicSender(Config.mqttQuic.host, Config.mqttQuic.port, Config.mqttQuic.alpn);
                 } catch (Exception e) {
                     throw new RuntimeException("Failed to initialize QUIC transport", e);
                 }

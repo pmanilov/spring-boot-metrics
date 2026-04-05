@@ -28,17 +28,17 @@ public class ConfigUI extends Application {
         mqttBox.setStyle("-fx-border-color: #cccccc; -fx-border-width: 1; -fx-padding: 10;");
 
         CheckBox mqttEnableCb = new CheckBox("Enable MQTT");
-        mqttEnableCb.setSelected(Config.enableMqtt);
+        mqttEnableCb.setSelected(Config.mqtt.enabled);
         mqttEnableCb.setStyle("-fx-font-weight: bold; -fx-font-size: 14;");
 
         GridPane mqttGrid = new GridPane();
         mqttGrid.setVgap(8);
         mqttGrid.setHgap(10);
 
-        TextField mqttHostField = new TextField(Config.hostname);
-        TextField mqttPortField = new TextField(String.valueOf(Config.mqttPort));
-        TextField mqttTopicField = new TextField(Config.topicMqtt);
-        TextField mqttClientIdField = new TextField(Config.clientIdPrefixMqtt);
+        TextField mqttHostField = new TextField(Config.mqtt.brokerHost);
+        TextField mqttPortField = new TextField(String.valueOf(Config.mqtt.brokerPort));
+        TextField mqttTopicField = new TextField(Config.mqtt.topic);
+        TextField mqttClientIdField = new TextField(Config.mqtt.clientIdPrefix);
 
         mqttGrid.add(new Label("Broker Host:"), 0, 0);
         mqttGrid.add(mqttHostField, 1, 0);
@@ -55,14 +55,14 @@ public class ConfigUI extends Application {
         mqttUdpBox.setStyle("-fx-border-color: #cccccc; -fx-border-width: 1; -fx-padding: 10;");
 
         CheckBox mqttUdpEnableCb = new CheckBox("Enable MQTT-UDP");
-        mqttUdpEnableCb.setSelected(Config.enableMqttUdp);
+        mqttUdpEnableCb.setSelected(Config.mqttUdp.enabled);
         mqttUdpEnableCb.setStyle("-fx-font-weight: bold; -fx-font-size: 14;");
 
         GridPane mqttUdpGrid = new GridPane();
         mqttUdpGrid.setVgap(8);
         mqttUdpGrid.setHgap(10);
 
-        TextField mqttUdpTopicField = new TextField(Config.topicMqttUdp);
+        TextField mqttUdpTopicField = new TextField(Config.mqttUdp.topic);
 
         mqttUdpGrid.add(new Label("Topic:"), 0, 0);
         mqttUdpGrid.add(mqttUdpTopicField, 1, 0);
@@ -105,10 +105,10 @@ public class ConfigUI extends Application {
         metricsGrid.setVgap(8);
         metricsGrid.setHgap(10);
 
-        TextField metricsHostMqttField = new TextField(Config.metricsHostMqtt);
-        TextField metricsPortMqttField = new TextField(String.valueOf(Config.metricsPortMqtt));
-        TextField metricsHostMqttUdpField = new TextField(Config.metricsHostMqttUdp);
-        TextField metricsPortMqttUdpField = new TextField(String.valueOf(Config.metricsPortMqttUdp));
+        TextField metricsHostMqttField = new TextField(Config.mqtt.metricsHost);
+        TextField metricsPortMqttField = new TextField(String.valueOf(Config.mqtt.metricsPort));
+        TextField metricsHostMqttUdpField = new TextField(Config.mqttUdp.metricsHost);
+        TextField metricsPortMqttUdpField = new TextField(String.valueOf(Config.mqttUdp.metricsPort));
 
         metricsGrid.add(new Label("Server MQTT Host:"), 0, 0);
         metricsGrid.add(metricsHostMqttField, 1, 0);
@@ -141,23 +141,23 @@ public class ConfigUI extends Application {
 
         startBtn.setOnAction(e -> {
             try {
-                Config.enableMqtt = mqttEnableCb.isSelected();
-                Config.enableMqttUdp = mqttUdpEnableCb.isSelected();
+                Config.mqtt.enabled = mqttEnableCb.isSelected();
+                Config.mqttUdp.enabled = mqttUdpEnableCb.isSelected();
 
-                Config.hostname = mqttHostField.getText();
-                Config.mqttPort = Integer.parseInt(mqttPortField.getText());
-                Config.topicMqtt = mqttTopicField.getText();
-                Config.clientIdPrefixMqtt = mqttClientIdField.getText();
+                Config.mqtt.brokerHost = mqttHostField.getText();
+                Config.mqtt.brokerPort = Integer.parseInt(mqttPortField.getText());
+                Config.mqtt.topic = mqttTopicField.getText();
+                Config.mqtt.clientIdPrefix = mqttClientIdField.getText();
 
-                Config.topicMqttUdp = mqttUdpTopicField.getText();
+                Config.mqttUdp.topic = mqttUdpTopicField.getText();
 
                 Config.intensity = Double.parseDouble(intensityField.getText());
                 Config.countClients = Integer.parseInt(countField.getText());
 
-                Config.metricsHostMqtt = metricsHostMqttField.getText();
-                Config.metricsPortMqtt = Integer.parseInt(metricsPortMqttField.getText());
-                Config.metricsHostMqttUdp = metricsHostMqttUdpField.getText();
-                Config.metricsPortMqttUdp = Integer.parseInt(metricsPortMqttUdpField.getText());
+                Config.mqtt.metricsHost = metricsHostMqttField.getText();
+                Config.mqtt.metricsPort = Integer.parseInt(metricsPortMqttField.getText());
+                Config.mqttUdp.metricsHost = metricsHostMqttUdpField.getText();
+                Config.mqttUdp.metricsPort = Integer.parseInt(metricsPortMqttUdpField.getText());
 
                 Config.isRunning = true;
 
@@ -191,13 +191,13 @@ public class ConfigUI extends Application {
                     .connectTimeout(Duration.ofSeconds(5))
                     .build();
 
-            String url1 = "http://" + Config.metricsHostMqtt + ":" + Config.metricsPortMqtt + "/metrics/delete";
+            String url1 = "http://" + Config.mqtt.metricsHost + ":" + Config.mqtt.metricsPort + "/metrics/delete";
             HttpRequest request1 = HttpRequest.newBuilder()
                     .uri(URI.create(url1))
                     .POST(HttpRequest.BodyPublishers.noBody())
                     .build();
 
-            String url2 = "http://" + Config.metricsHostMqttUdp + ":" + Config.metricsPortMqttUdp + "/metrics/delete";
+            String url2 = "http://" + Config.mqttUdp.metricsHost + ":" + Config.mqttUdp.metricsPort + "/metrics/delete";
             HttpRequest request2 = HttpRequest.newBuilder()
                     .uri(URI.create(url2))
                     .POST(HttpRequest.BodyPublishers.noBody())
@@ -206,7 +206,7 @@ public class ConfigUI extends Application {
             client.sendAsync(request1, HttpResponse.BodyHandlers.ofString())
                     .thenAccept(response -> {
                         if (response.statusCode() == 200) {
-                            System.out.println("Metrics cleared on server 1: " + Config.metricsHostMqtt + ":" + Config.metricsPortMqtt);
+                            System.out.println("Metrics cleared on server 1: " + Config.mqtt.metricsHost + ":" + Config.mqtt.metricsPort);
                         } else {
                             System.out.println("Failed to clear metrics on server 1: " + response.statusCode());
                         }
@@ -215,15 +215,15 @@ public class ConfigUI extends Application {
             client.sendAsync(request2, HttpResponse.BodyHandlers.ofString())
                     .thenAccept(response -> {
                         if (response.statusCode() == 200) {
-                            System.out.println("Metrics cleared on server 2: " + Config.metricsHostMqttUdp + ":" + Config.metricsPortMqttUdp);
+                            System.out.println("Metrics cleared on server 2: " + Config.mqttUdp.metricsHost + ":" + Config.mqttUdp.metricsPort);
                         } else {
                             System.out.println("Failed to clear metrics on server 2: " + response.statusCode());
                         }
                     });
 
             new Alert(Alert.AlertType.INFORMATION, "Requests is send:\n" +
-                    Config.metricsHostMqtt + ":" + Config.metricsPortMqtt + "\n" +
-                    Config.metricsHostMqttUdp + ":" + Config.metricsPortMqttUdp).showAndWait();
+                    Config.mqtt.metricsHost + ":" + Config.mqtt.metricsPort + "\n" +
+                    Config.mqttUdp.metricsHost + ":" + Config.mqttUdp.metricsPort).showAndWait();
 
         } catch (Exception ex) {
             new Alert(Alert.AlertType.ERROR, "Error while deleting metrics: " + ex.getMessage()).showAndWait();
