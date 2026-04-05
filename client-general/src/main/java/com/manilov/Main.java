@@ -9,8 +9,12 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class Main {
+
+    public static final AtomicLong sentCountMqtt = new AtomicLong(0);
+    public static final AtomicLong sentCountMqttUdp = new AtomicLong(0);
 
     public static void main(String[] args) {
         if (Config.enableMqtt) {
@@ -54,6 +58,7 @@ public class Main {
                 try {
                     PublishPacket pkt = new PublishPacket(Config.topicMqttUdp, payload);
                     pkt.send();
+                    sentCountMqttUdp.incrementAndGet();
                     //System.out.println("MQTT-UDP sent: " + payload);
                 } catch (IOException e) {
                     System.err.println(e.getMessage());
@@ -94,6 +99,7 @@ public class Main {
                         mqttMessage.setQos(0);
 
                         client.publish(Config.topicMqtt, mqttMessage);
+                        sentCountMqtt.incrementAndGet();
                         //System.out.println(clientId + " published: " + message);
                     }
 

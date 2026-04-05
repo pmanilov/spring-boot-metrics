@@ -1,7 +1,7 @@
 plugins {
     id 'java'
     id 'application'
-    id 'org.openjfx.javafxplugin' version '0.0.13'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
 }
 
 group = 'com.manilov'
@@ -26,6 +26,15 @@ dependencies {
     implementation name: 'mqtt_udp-0.5.1'
     implementation group: 'org.eclipse.paho', name: 'org.eclipse.paho.client.mqttv3', version: '1.2.5'
     implementation('org.controlsfx:controlsfx:11.1.2')
+
+    // Netty QUIC client (incubator) for MQTT-over-QUIC transport
+    implementation 'io.netty:netty-all:4.1.115.Final'
+    implementation 'io.netty.incubator:netty-incubator-codec-quic:0.0.72.Final'
+    runtimeOnly 'io.netty.incubator:netty-incubator-codec-native-quiche:0.0.72.Final:linux-x86_64'
+    runtimeOnly 'io.netty.incubator:netty-incubator-codec-native-quiche:0.0.72.Final:linux-aarch_64'
+    runtimeOnly 'io.netty.incubator:netty-incubator-codec-native-quiche:0.0.72.Final:osx-x86_64'
+    runtimeOnly 'io.netty.incubator:netty-incubator-codec-native-quiche:0.0.72.Final:osx-aarch_64'
+
     testImplementation platform('org.junit:junit-bom:5.9.1')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }
@@ -95,6 +104,26 @@ task experimentPacketSizeJar(type: Jar) {
     manifest {
         attributes(
                 'Main-Class': 'com.manilov.PacketSizeExperimentRunner'
+        )
+    }
+
+    from sourceSets.main.output
+
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
+}
+
+task experimentPacketLossJar(type: Jar) {
+    archiveBaseName = 'experiment-packet-loss'
+
+    manifest {
+        attributes(
+                'Main-Class': 'com.manilov.PacketLossExperimentRunner'
         )
     }
 

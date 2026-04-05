@@ -36,4 +36,15 @@ public class MetricsController {
     public ResponseEntity<Double> getAveragePacketSize() {
         return ResponseEntity.ok(packetSizeService.getAveragePacketSize(serverId));
     }
+
+    @GetMapping("/count")
+    public ResponseEntity<Long> getCount() {
+        return ResponseEntity.ok(delayService.getReceivedCount());
+    }
+
+    @PostMapping("/count/reset")
+    public ResponseEntity<String> resetCount() {
+        delayService.resetReceivedCount();
+        return ResponseEntity.ok("Count reset");
+    }
 }
