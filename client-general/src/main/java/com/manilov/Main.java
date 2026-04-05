@@ -15,6 +15,7 @@ public class Main {
 
     public static final AtomicLong sentCountMqtt = new AtomicLong(0);
     public static final AtomicLong sentCountMqttUdp = new AtomicLong(0);
+    public static final AtomicLong sentCountMqttQuic = new AtomicLong(0);
 
     public static void main(String[] args) {
         if (Config.enableMqtt) {
@@ -40,6 +41,44 @@ public class Main {
         double intervalSeconds = -Math.log(1.0 - random) / lambda;
 
         return (long) (intervalSeconds * 1_000_000_000L);
+    }
+
+    static Runnable getTaskMqttQuic(String clientId) {
+        return () -> {
+            String overhead = Config.bytesOverhead > 0 ? "," + "0".repeat(Config.bytesOverhead - 1) : "";
+            MqttQuicSender.Session session;
+            try {
+                session = MqttQuicSender.get().openSession(clientId);
+            } catch (Exception e) {
+                System.err.println(clientId + " failed to open MQTT-QUIC session: " + e.getMessage());
+                return;
+            }
+            try {
+                while (!Thread.interrupted() && Config.isRunning) {
+                    try {
+                        TimeUnit.NANOSECONDS.sleep(getNextPoissonDelayNanos(Config.intensity));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                    Instant now = Instant.now();
+                    long currentTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
+                    String payload = currentTime + overhead;
+                    try {
+                        session.publish(Config.topicMqttQuic, payload.getBytes());
+                        sentCountMqttQuic.incrementAndGet();
+                    } catch (Exception e) {
+                        System.err.println("MQTT-QUIC publish error: " + e.getMessage());
+                        break;
+                    }
+                }
+            } finally {
+                try {
+                    session.close();
+                } catch (Exception ignored) {
+                }
+            }
+        };
     }
 
     static Runnable getTaskMqttUdp() {

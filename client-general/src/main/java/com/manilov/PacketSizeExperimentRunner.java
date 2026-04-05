@@ -46,9 +46,14 @@ public class PacketSizeExperimentRunner {
 
                     runProtocolTest("MQTT-UDP", overhead, clients, intensity, duration,
                             Config.metricsHostMqttUdp, Config.metricsPortMqttUdp);
+
+                    runProtocolTest("MQTT-QUIC", overhead, clients, intensity, duration,
+                            Config.metricsHostMqttQuic, Config.metricsPortMqttQuic);
                 }
             }
         }
+
+        MqttQuicSender.close();
     }
 
     private static void runProtocolTest(String protocol, int overhead, int clients, double intensity,
@@ -62,6 +67,7 @@ public class PacketSizeExperimentRunner {
         Config.isRunning = true;
         Config.enableMqtt = protocol.equals("MQTT");
         Config.enableMqttUdp = protocol.equals("MQTT-UDP");
+        Config.enableMqttQuic = protocol.equals("MQTT-QUIC");
         Config.countClients = clients;
         Config.bytesOverhead = overhead;
 
@@ -77,6 +83,12 @@ public class PacketSizeExperimentRunner {
             ru.dz.mqtt_udp.Engine.setThrottle(0);
             for (int i = 0; i < Config.countClients; i++) {
                 Thread t = Thread.ofVirtual().start(Main.getTaskMqttUdp());
+                threads.add(t);
+            }
+        } else if (Config.enableMqttQuic) {
+            for (int i = 0; i < Config.countClients; i++) {
+                String clientId = Config.clientIdPrefixMqttQuic + "_Test_" + i;
+                Thread t = Thread.ofVirtual().start(Main.getTaskMqttQuic(clientId));
                 threads.add(t);
             }
         }
@@ -147,10 +159,11 @@ public class PacketSizeExperimentRunner {
     private static void warmup() {
         System.out.printf("[WARMUP] Starting warm-up phase (%d minutes)...%n", WARMUP_DURATION_SECONDS / 60);
 
-        for (String protocol : new String[] { "MQTT", "MQTT-UDP" }) {
+        for (String protocol : new String[] { "MQTT", "MQTT-UDP", "MQTT-QUIC" }) {
             Config.isRunning = true;
             Config.enableMqtt = protocol.equals("MQTT");
             Config.enableMqttUdp = protocol.equals("MQTT-UDP");
+            Config.enableMqttQuic = protocol.equals("MQTT-QUIC");
             Config.countClients = 1;
             Config.intensity = 10.0;
             Config.bytesOverhead = 0;
@@ -159,12 +172,15 @@ public class PacketSizeExperimentRunner {
             if (Config.enableMqtt) {
                 String clientId = Config.clientIdPrefixMqtt + "_Warmup";
                 threads.add(Thread.ofVirtual().start(Main.getTaskMQTT(clientId)));
-            } else {
+            } else if (Config.enableMqttUdp) {
                 ru.dz.mqtt_udp.Engine.setThrottle(0);
                 threads.add(Thread.ofVirtual().start(Main.getTaskMqttUdp()));
+            } else if (Config.enableMqttQuic) {
+                String clientId = Config.clientIdPrefixMqttQuic + "_Warmup";
+                threads.add(Thread.ofVirtual().start(Main.getTaskMqttQuic(clientId)));
             }
 
-            sleepSeconds(WARMUP_DURATION_SECONDS / 2);
+            sleepSeconds(WARMUP_DURATION_SECONDS / 3);
 
             Config.isRunning = false;
             threads.forEach(Thread::interrupt);
@@ -172,6 +188,7 @@ public class PacketSizeExperimentRunner {
 
         clearServerMetrics(Config.metricsHostMqtt, Config.metricsPortMqtt);
         clearServerMetrics(Config.metricsHostMqttUdp, Config.metricsPortMqttUdp);
+        clearServerMetrics(Config.metricsHostMqttQuic, Config.metricsPortMqttQuic);
 
         System.out.println("[WARMUP] Done. Starting main experiment.");
     }

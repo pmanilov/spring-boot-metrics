@@ -25,11 +25,11 @@ public class PacketLossExperimentRunner {
     private static final int[] CLIENT_COUNTS = { 1 };
     // Much higher intensities than the other experiments, chosen to actually
     // saturate broker/UDP buffers on a real network.
-    private static final double[] INTENSITIES = { 10, 100, 500, 1000, 5000, 10000,  15000, 20000 };
+    private static final double[] INTENSITIES = { 10, 100, 500, 1000, 5000, 10000,  15000, 20000,  25000};
     // One duration per intensity: enough time to gather a statistically
     // meaningful number of packets without taking forever at the top end.
-    private static final int[] TEST_DURATIONS_SECONDS = { 600, 600, 600, 600, 300, 300, 300 };
-    private static final int WARMUP_DURATION_SECONDS = 120;
+    private static final int[] TEST_DURATIONS_SECONDS = { 1200, 600, 600, 600, 600, 300, 300, 300, 300 };
+    private static final int WARMUP_DURATION_SECONDS = 300;
     // After stopping the producer, wait so in-flight packets can be delivered
     // and counted on the server before we read the counter.
     private static final int DRAIN_SECONDS = 10;
@@ -61,10 +61,13 @@ public class PacketLossExperimentRunner {
 
                 runProtocolTest("MQTT-UDP", clients, intensity, duration,
                         Config.metricsHostMqttUdp, Config.metricsPortMqttUdp);
+
+                runProtocolTest("MQTT-QUIC", clients, intensity, duration,
+                        Config.metricsHostMqttQuic, Config.metricsPortMqttQuic);
             }
         }
 
-        QuicSender.close();
+        MqttQuicSender.close();
     }
 
     private static void runProtocolTest(String protocol, int clients, double intensity,
@@ -77,10 +80,12 @@ public class PacketLossExperimentRunner {
         resetServerCount(metricsHost, metricsPort);
         Main.sentCountMqtt.set(0);
         Main.sentCountMqttUdp.set(0);
+        Main.sentCountMqttQuic.set(0);
 
         Config.isRunning = true;
         Config.enableMqtt = protocol.equals("MQTT");
         Config.enableMqttUdp = protocol.equals("MQTT-UDP");
+        Config.enableMqttQuic = protocol.equals("MQTT-QUIC");
         Config.countClients = clients;
         Config.bytesOverhead = 0;
 
@@ -96,6 +101,12 @@ public class PacketLossExperimentRunner {
             ru.dz.mqtt_udp.Engine.setThrottle(0);
             for (int i = 0; i < Config.countClients; i++) {
                 Thread t = Thread.ofVirtual().start(Main.getTaskMqttUdp());
+                threads.add(t);
+            }
+        } else if (Config.enableMqttQuic) {
+            for (int i = 0; i < Config.countClients; i++) {
+                String clientId = Config.clientIdPrefixMqttQuic + "_Loss_" + i;
+                Thread t = Thread.ofVirtual().start(Main.getTaskMqttQuic(clientId));
                 threads.add(t);
             }
         }
@@ -114,8 +125,10 @@ public class PacketLossExperimentRunner {
         long sent;
         if (Config.enableMqtt) {
             sent = Main.sentCountMqtt.get();
-        } else {
+        } else if (Config.enableMqttUdp) {
             sent = Main.sentCountMqttUdp.get();
+        } else {
+            sent = Main.sentCountMqttQuic.get();
         }
         long received = getServerCount(metricsHost, metricsPort);
         double lossRatio = sent > 0 ? 1.0 - ((double) received / (double) sent) : 0.0;
@@ -215,6 +228,7 @@ public class PacketLossExperimentRunner {
             Config.isRunning = true;
             Config.enableMqtt = protocol.equals("MQTT");
             Config.enableMqttUdp = protocol.equals("MQTT-UDP");
+            Config.enableMqttQuic = protocol.equals("MQTT-QUIC");
             Config.countClients = 1;
             Config.intensity = 100.0;
             Config.bytesOverhead = 0;
@@ -223,9 +237,12 @@ public class PacketLossExperimentRunner {
             if (Config.enableMqtt) {
                 String clientId = Config.clientIdPrefixMqtt + "_LossWarmup";
                 threads.add(Thread.ofVirtual().start(Main.getTaskMQTT(clientId)));
-            } else {
+            } else if (Config.enableMqttUdp) {
                 ru.dz.mqtt_udp.Engine.setThrottle(0);
                 threads.add(Thread.ofVirtual().start(Main.getTaskMqttUdp()));
+            } else if (Config.enableMqttQuic) {
+                String clientId = Config.clientIdPrefixMqttQuic + "_LossWarmup";
+                threads.add(Thread.ofVirtual().start(Main.getTaskMqttQuic(clientId)));
             }
 
             sleepSeconds(WARMUP_DURATION_SECONDS / 3);
@@ -236,8 +253,10 @@ public class PacketLossExperimentRunner {
 
         clearServerMetrics(Config.metricsHostMqtt, Config.metricsPortMqtt);
         clearServerMetrics(Config.metricsHostMqttUdp, Config.metricsPortMqttUdp);
+        clearServerMetrics(Config.metricsHostMqttQuic, Config.metricsPortMqttQuic);
         resetServerCount(Config.metricsHostMqtt, Config.metricsPortMqtt);
         resetServerCount(Config.metricsHostMqttUdp, Config.metricsPortMqttUdp);
+        resetServerCount(Config.metricsHostMqttQuic, Config.metricsPortMqttQuic);
 
         System.out.println("[WARMUP] Done. Starting main experiment.");
     }

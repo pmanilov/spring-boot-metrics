@@ -16,6 +16,7 @@ do for [intensity in intensity_values] {
 
     cmd_mqtt = sprintf("< awk -F, 'NR>1 && $4+0==%s && $3==%d && $1==\"MQTT\"' experiment_results_packet_size.csv", intensity, target_clients)
     cmd_udp  = sprintf("< awk -F, 'NR>1 && $4+0==%s && $3==%d && $1==\"MQTT-UDP\"' experiment_results_packet_size.csv", intensity, target_clients)
+    cmd_quic = sprintf("< awk -F, 'NR>1 && $4+0==%s && $3==%d && $1==\"MQTT-QUIC\"' experiment_results_packet_size.csv", intensity, target_clients)
 
     set title "Зависимость средней задержки от размера полезной нагрузки"
     set xlabel "Размер полезной нагрузки (байт)"
@@ -23,8 +24,9 @@ do for [intensity in intensity_values] {
     set xrange [overhead_min : overhead_max]
     set yrange [0 : 100]
 
-    plot cmd_mqtt using 2:5 with linespoints lw 2 pt 7 ps 1.5 lc rgb "red"  title "MQTT", \
-         cmd_udp  using 2:5 with linespoints lw 2 pt 5 ps 1.5 lc rgb "blue" title "MQTT-UDP"
+    plot cmd_mqtt using 2:5 with linespoints lw 2 pt 7 ps 1.5 lc rgb "red"   title "MQTT", \
+         cmd_udp  using 2:5 with linespoints lw 2 pt 5 ps 1.5 lc rgb "blue"  title "MQTT-UDP", \
+         cmd_quic using 2:5 with linespoints lw 2 pt 9 ps 1.5 lc rgb "green" title "MQTT-QUIC"
 
     set title "Зависимость размера пакета от размера полезной нагрузки"
     set xlabel "Размер полезной нагрузки (байт)"
@@ -32,8 +34,9 @@ do for [intensity in intensity_values] {
     set xrange [overhead_min : overhead_max]
     set yrange [0 : overhead_max + 2000]
 
-    plot cmd_mqtt using 2:6 with linespoints lw 2 pt 7 ps 1.5 lc rgb "red"  title "MQTT", \
-         cmd_udp  using 2:6 with linespoints lw 2 pt 5 ps 1.5 lc rgb "blue" title "MQTT-UDP"
+    plot cmd_mqtt using 2:6 with linespoints lw 2 pt 7 ps 1.5 lc rgb "red"   title "MQTT", \
+         cmd_udp  using 2:6 with linespoints lw 2 pt 5 ps 1.5 lc rgb "blue"  title "MQTT-UDP", \
+         cmd_quic using 2:6 with linespoints lw 2 pt 9 ps 1.5 lc rgb "green" title "MQTT-QUIC"
 
     unset multiplot
 }
