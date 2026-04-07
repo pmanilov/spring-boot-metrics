@@ -1,7 +1,7 @@
 package com.manilov;
 
 import org.eclipse.paho.client.mqttv3.*;
-import org.eclipse.paho.client.mqttv3.persist.MqttDefaultFilePersistence;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import ru.dz.mqtt_udp.Engine;
 import ru.dz.mqtt_udp.PublishPacket;
 
@@ -118,20 +118,17 @@ public class Main {
         return () -> {
             while (!Thread.interrupted() && Config.isRunning) {
 
-                try (MqttDefaultFilePersistence persistence = new MqttDefaultFilePersistence("tmpFiles/" + clientId);
-                     MqttClient client = new MqttClient(Config.mqtt.brokerUrl(), clientId, persistence)) {
+                try (MemoryPersistence persistence = new MemoryPersistence()) {
+                    MqttAsyncClient client = new MqttAsyncClient(Config.mqtt.brokerUrl(), clientId, persistence);
 
                     MqttConnectOptions connOpts = new MqttConnectOptions();
                     connOpts.setCleanSession(true);
-
-                    connOpts.setKeepAliveInterval(5);
-
+                    connOpts.setKeepAliveInterval(60);
                     connOpts.setAutomaticReconnect(false);
 
                     System.out.println(clientId + ": Connecting to broker...");
 
-
-                    client.connect(connOpts);
+                    client.connect(connOpts).waitForCompletion();
                     System.out.println(clientId + ": Connected!");
 
                     String overhead = Config.bytesOverhead > 0 ? "," + "0".repeat(Config.bytesOverhead - 1) : "";
@@ -147,8 +144,10 @@ public class Main {
 
                         client.publish(Config.mqtt.topic, mqttMessage);
                         sentCountMqtt.incrementAndGet();
-                        //System.out.println(clientId + " published: " + message);
                     }
+
+                    client.disconnectForcibly(0, 0);
+                    client.close();
 
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -159,8 +158,8 @@ public class Main {
 
                 if (Config.isRunning) {
                     try {
-                        System.out.println(clientId + ": Reconnecting in 5 seconds...");
-                        TimeUnit.SECONDS.sleep(5);
+                        System.out.println(clientId + ": Reconnecting in 1 second...");
+                        TimeUnit.SECONDS.sleep(1);
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                         break;

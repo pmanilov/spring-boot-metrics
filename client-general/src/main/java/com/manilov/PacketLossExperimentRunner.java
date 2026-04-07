@@ -23,16 +23,16 @@ import java.util.concurrent.TimeUnit;
  */
 public class PacketLossExperimentRunner {
     private static final int[] CLIENT_COUNTS = { 1 };
-    // Much higher intensities than the other experiments, chosen to actually
-    // saturate broker/UDP buffers on a real network.
-    private static final double[] INTENSITIES = { 10, 100, 500, 1000, 5000, 10000,  15000, 20000,  25000};
-    // One duration per intensity: enough time to gather a statistically
-    // meaningful number of packets without taking forever at the top end.
-    private static final int[] TEST_DURATIONS_SECONDS = { 1200, 600, 600, 600, 600, 300, 300, 300, 300 };
-    private static final int WARMUP_DURATION_SECONDS = 300;
+    // Fine-grained low intensities to find the exact point where MQTT starts
+    // degrading in a real network environment.
+    private static final double[] INTENSITIES = { 5, 10, 15, 20, 30, 50, 75, 100 };
+    // Longer durations at low rates for statistical significance; shorter at
+    // higher rates where we already know saturation occurs.
+    private static final int[] TEST_DURATIONS_SECONDS = { 1200, 900, 600, 600, 600, 600, 300, 300 };
+    private static final int WARMUP_DURATION_SECONDS = 120;
     // After stopping the producer, wait so in-flight packets can be delivered
     // and counted on the server before we read the counter.
-    private static final int DRAIN_SECONDS = 10;
+    private static final int DRAIN_SECONDS = 30;
     private static final String CSV_FILE = "experiment_results_packet_loss.csv";
 
     private static final HttpClient httpClient = HttpClient.newBuilder()
