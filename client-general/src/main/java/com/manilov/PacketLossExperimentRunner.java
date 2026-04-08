@@ -25,11 +25,11 @@ public class PacketLossExperimentRunner {
     private static final int[] CLIENT_COUNTS = { 1 };
     // Fine-grained low intensities to find the exact point where MQTT starts
     // degrading in a real network environment.
-    private static final double[] INTENSITIES = { 5, 10, 15, 20, 30, 50, 75, 100 };
+    private static final double[] INTENSITIES = { 5, 10, 15, 20, 25, 30 };
     // Longer durations at low rates for statistical significance; shorter at
     // higher rates where we already know saturation occurs.
-    private static final int[] TEST_DURATIONS_SECONDS = { 1200, 900, 600, 600, 600, 600, 300, 300 };
-    private static final int WARMUP_DURATION_SECONDS = 120;
+    private static final int[] TEST_DURATIONS_SECONDS = { 3000, 1500, 1000, 750, 600, 500 };
+    private static final int WARMUP_DURATION_SECONDS = 500;
     // After stopping the producer, wait so in-flight packets can be delivered
     // and counted on the server before we read the counter.
     private static final int DRAIN_SECONDS = 30;
@@ -230,7 +230,7 @@ public class PacketLossExperimentRunner {
             Config.mqttUdp.enabled = protocol.equals("MQTT-UDP");
             Config.mqttQuic.enabled = protocol.equals("MQTT-QUIC");
             Config.countClients = 1;
-            Config.intensity = 100.0;
+            Config.intensity = 20.0;
             Config.bytesOverhead = 0;
 
             List<Thread> threads = new ArrayList<>();
