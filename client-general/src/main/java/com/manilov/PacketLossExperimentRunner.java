@@ -28,11 +28,11 @@ public class PacketLossExperimentRunner {
     private static final double[] INTENSITIES = { 5, 10, 15, 20, 25, 30 };
     // Longer durations at low rates for statistical significance; shorter at
     // higher rates where we already know saturation occurs.
-    private static final int[] TEST_DURATIONS_SECONDS = { 3000, 1500, 1000, 750, 600, 500 };
+    private static final int[] TEST_DURATIONS_SECONDS = { 12000, 6000, 4000, 3000, 2400, 2000 };
     private static final int WARMUP_DURATION_SECONDS = 500;
     // After stopping the producer, wait so in-flight packets can be delivered
     // and counted on the server before we read the counter.
-    private static final int DRAIN_SECONDS = 30;
+    private static final int DRAIN_SECONDS = 120;
     private static final String CSV_FILE = "experiment_results_packet_loss.csv";
 
     private static final HttpClient httpClient = HttpClient.newBuilder()
