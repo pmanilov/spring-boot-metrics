@@ -95,11 +95,26 @@ public class MqttQuicBrokerHandler extends SimpleChannelInboundHandler<MqttMessa
             String value = new String(bytes, StandardCharsets.UTF_8);
             int comma = value.indexOf(',');
             String tsStr = comma >= 0 ? value.substring(0, comma) : value;
+            long sentTs;
             try {
-                long sentTs = Long.parseLong(tsStr);
-                delayService.save(sentTs, serverId);
+                sentTs = Long.parseLong(tsStr);
+            } catch (NumberFormatException e) {
+                log.warn("Unparseable metrics payload '{}': {}", value, e.getMessage());
+                sentTs = Long.MIN_VALUE;
+            }
+
+            if (sentTs != Long.MIN_VALUE) {
+                try {
+                    delayService.save(sentTs, serverId);
+                } catch (Exception e) {
+                    log.warn("delayService.save failed: {}", e.getMessage());
+                }
+            }
+
+            try {
                 packetSizeHandler.handleMessage(topic, bytes);
-            } catch (NumberFormatException ignored) {
+            } catch (Exception e) {
+                log.warn("packetSizeHandler failed: {}", e.getMessage());
             }
         }
 

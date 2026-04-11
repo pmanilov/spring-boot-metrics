@@ -41,16 +41,29 @@ public class MqttUdpConfiguration {
 
     private void handlePacket(PublishPacket pub) {
         String topic = pub.getTopic();
-        if (metricsTopic.equals(topic)) {
-            try {
-                String valueStr = pub.getValueString();
-                long sentTs = Long.parseLong(valueStr.split(",")[0]);
-                delayService.save(sentTs, serverId);
+        if (!metricsTopic.equals(topic)) {
+            return;
+        }
+        String valueStr = pub.getValueString();
+        long sentTs;
+        try {
+            sentTs = Long.parseLong(valueStr.split(",")[0]);
+        } catch (NumberFormatException e) {
+            log.warn("Unparseable metrics payload '{}': {}", valueStr, e.getMessage());
+            return;
+        }
 
-                byte[] payloadBytes = valueStr.getBytes(StandardCharsets.UTF_8);
-                packetSizeHandler.handleMessage(topic, payloadBytes);
-            } catch (NumberFormatException ignored) {
-            }
+        try {
+            delayService.save(sentTs, serverId);
+        } catch (Exception e) {
+            log.warn("delayService.save failed: {}", e.getMessage());
+        }
+
+        try {
+            byte[] payloadBytes = valueStr.getBytes(StandardCharsets.UTF_8);
+            packetSizeHandler.handleMessage(topic, payloadBytes);
+        } catch (Exception e) {
+            log.warn("packetSizeHandler failed: {}", e.getMessage());
         }
     }
 

@@ -3,6 +3,7 @@ package com.manilov.servermqtt.configuration;
 import com.manilov.common.service.DelayService;
 import com.manilov.servermqtt.handler.PacketSizeHandler;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -20,6 +21,7 @@ import org.springframework.integration.mqtt.support.MqttHeaders;
 import org.springframework.integration.stream.CharacterStreamReadingMessageSource;
 import org.springframework.messaging.MessageHandler;
 
+@Slf4j
 @Configuration
 @RequiredArgsConstructor
 public class MqttConfiguration {
@@ -79,12 +81,27 @@ public class MqttConfiguration {
     public MessageHandler messageHandler() {
         return message -> {
             String payloadStr = message.getPayload().toString();
-            long sentTs = Long.parseLong(payloadStr.split(",")[0]);
-            delayService.save(sentTs, serverId);
+            long sentTs;
+            try {
+                sentTs = Long.parseLong(payloadStr.split(",")[0]);
+            } catch (NumberFormatException e) {
+                log.warn("Unparseable metrics payload '{}': {}", payloadStr, e.getMessage());
+                return;
+            }
 
-            String topic = (String) message.getHeaders().get(MqttHeaders.RECEIVED_TOPIC);
-            byte[] payloadBytes = payloadStr.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            packetSizeHandler.handleMessage(topic != null ? topic : metricsTopic, payloadBytes);
+            try {
+                delayService.save(sentTs, serverId);
+            } catch (Exception e) {
+                log.warn("delayService.save failed: {}", e.getMessage());
+            }
+
+            try {
+                String topic = (String) message.getHeaders().get(MqttHeaders.RECEIVED_TOPIC);
+                byte[] payloadBytes = payloadStr.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                packetSizeHandler.handleMessage(topic != null ? topic : metricsTopic, payloadBytes);
+            } catch (Exception e) {
+                log.warn("packetSizeHandler failed: {}", e.getMessage());
+            }
         };
     }
 
