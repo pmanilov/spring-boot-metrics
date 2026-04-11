@@ -115,8 +115,17 @@ public class PacketLossExperimentRunner {
 
         Config.isRunning = false;
 
+        // Wait for publisher threads to exit their loop and flush any pending
+        // messages through a graceful disconnect. Do NOT interrupt() here — that
+        // would trip InterruptedException in the sleep() inside the publish
+        // loop and skip the disconnect-with-wait, causing the Paho outbound
+        // buffer to be discarded on TCP.
         for (Thread t : threads) {
-            t.interrupt();
+            try {
+                t.join(TimeUnit.SECONDS.toMillis(35));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
 
         // Allow in-flight packets to be delivered and counted.
@@ -248,7 +257,13 @@ public class PacketLossExperimentRunner {
             sleepSeconds(WARMUP_DURATION_SECONDS / 3);
 
             Config.isRunning = false;
-            threads.forEach(Thread::interrupt);
+            for (Thread t : threads) {
+                try {
+                    t.join(TimeUnit.SECONDS.toMillis(35));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
         }
 
         clearServerMetrics(Config.mqtt.metricsHost, Config.mqtt.metricsPort);

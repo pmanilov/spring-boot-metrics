@@ -114,17 +114,19 @@ public class Main {
         };
     }
 
-    static Runnable getTaskMQTT(String clientId) {
+    static Runnable getTaskMQTT(String clientIdPrefix) {
         return () -> {
-            while (!Thread.interrupted() && Config.isRunning) {
+            String clientId = clientIdPrefix + "_" + java.util.UUID.randomUUID();
+            while (Config.isRunning) {
 
                 try (MemoryPersistence persistence = new MemoryPersistence()) {
                     MqttAsyncClient client = new MqttAsyncClient(Config.mqtt.brokerUrl(), clientId, persistence);
 
                     MqttConnectOptions connOpts = new MqttConnectOptions();
                     connOpts.setCleanSession(true);
-                    connOpts.setKeepAliveInterval(60);
+                    connOpts.setKeepAliveInterval(10);
                     connOpts.setAutomaticReconnect(false);
+                    connOpts.setMaxInflight(10_000);
 
                     System.out.println(clientId + ": Connecting to broker...");
 
@@ -133,21 +135,31 @@ public class Main {
 
                     String overhead = Config.bytesOverhead > 0 ? "," + "0".repeat(Config.bytesOverhead - 1) : "";
 
-                    while (client.isConnected() && Config.isRunning) {
-                        TimeUnit.NANOSECONDS.sleep(getNextPoissonDelayNanos(Config.intensity));
-                        Instant now = Instant.now();
-                        long currentTime = now.getEpochSecond() * 1_000_000_000L + now.getNano();
-                        String message = currentTime + overhead;
+                    try {
+                        while (client.isConnected() && Config.isRunning) {
+                            TimeUnit.NANOSECONDS.sleep(getNextPoissonDelayNanos(Config.intensity));
+                            Instant now = Instant.now();
+                            long currentTime = now.getEpochSecond() * 1_000_000_000L + now.getNano();
+                            String message = currentTime + overhead;
 
-                        MqttMessage mqttMessage = new MqttMessage(message.getBytes());
-                        mqttMessage.setQos(0);
+                            MqttMessage mqttMessage = new MqttMessage(message.getBytes());
+                            mqttMessage.setQos(0);
 
-                        client.publish(Config.mqtt.topic, mqttMessage);
-                        sentCountMqtt.incrementAndGet();
+                            client.publish(Config.mqtt.topic, mqttMessage).waitForCompletion();
+                            sentCountMqtt.incrementAndGet();
+                        }
+                    } finally {
+                        try {
+                            if (client.isConnected()) {
+                                client.disconnect(30_000).waitForCompletion();
+                            }
+                        } catch (MqttException ignored) {
+                        }
+                        try {
+                            client.close();
+                        } catch (MqttException ignored) {
+                        }
                     }
-
-                    client.disconnectForcibly(0, 0);
-                    client.close();
 
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
