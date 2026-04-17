@@ -1,5 +1,8 @@
 package com.manilov;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -9,7 +12,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -22,17 +27,21 @@ import java.util.concurrent.TimeUnit;
  * writes the ratio to CSV.
  */
 public class PacketLossExperimentRunner {
-    private static final int[] CLIENT_COUNTS = { 1 };
-    // Fine-grained low intensities to find the exact point where MQTT starts
-    // degrading in a real network environment.
-    private static final double[] INTENSITIES = { 5, 10, 15, 20, 25, 30 };
-    // Longer durations at low rates for statistical significance; shorter at
-    // higher rates where we already know saturation occurs.
-    private static final int[] TEST_DURATIONS_SECONDS = { 12000, 6000, 4000, 3000, 2400, 2000 };
-    private static final int WARMUP_DURATION_SECONDS = 500;
+    private static final int[] CLIENT_COUNTS = { 1, 10, 50, 100};
+    private static final int[] PAYLOAD_SIZES = { 0, 1024, 2048, 4096, 16384};
+    private static final double INTENSITY_START = 500;
+    private static final double INTENSITY_END = 10000;
+    private static final double INTENSITY_STEP = 500;
+
+    // Total packets per test (to keep total packets constant across different intensities).
+    // Increased for longer, more stable runs now that QUIC is excluded.
+    private static final int TOTAL_PACKETS_PER_TEST = 200000;
+    private static final int MIN_DURATION_SECONDS = 30;
+    
+    private static final int WARMUP_DURATION_SECONDS = 600;
     // After stopping the producer, wait so in-flight packets can be delivered
     // and counted on the server before we read the counter.
-    private static final int DRAIN_SECONDS = 120;
+    private static final int DRAIN_SECONDS = 30;
     private static final String CSV_FILE = "experiment_results_packet_loss.csv";
 
     private static final HttpClient httpClient = HttpClient.newBuilder()
@@ -40,41 +49,90 @@ public class PacketLossExperimentRunner {
             .build();
 
     public static void main(String[] args) {
-        try (PrintWriter writer = new PrintWriter(new FileWriter(CSV_FILE))) {
-            writer.println("Protocol,Clients,Intensity(req/sec),Sent,Received,LossRatio,AvgDelay(ms),AvgPacketSize(bytes)");
-        } catch (IOException e) {
-            System.err.println("Could not create CSV file: " + e.getMessage());
-            return;
-        }
+        Set<String> completed = loadCompletedRuns();
+        boolean resuming = !completed.isEmpty();
 
-        warmup();
+        if (!resuming) {
+            try (PrintWriter writer = new PrintWriter(new FileWriter(CSV_FILE))) {
+                writer.println("Protocol,Clients,Overhead(bytes),Intensity(req/sec),Sent,Received,LossRatio,AvgDelay(ms),AvgPacketSize(bytes)");
+            } catch (IOException e) {
+                System.err.println("Could not create CSV file: " + e.getMessage());
+                return;
+            }
+            warmup();
+        } else {
+            System.out.printf("[RESUME] Found %d completed runs in %s, skipping warmup.%n",
+                    completed.size(), CSV_FILE);
+        }
 
         for (int clients : CLIENT_COUNTS) {
-            for (int i = 0; i < INTENSITIES.length; i++) {
-                double intensity = INTENSITIES[i];
-                int duration = TEST_DURATIONS_SECONDS[i];
-                Config.intensity = intensity;
-                Config.countClients = clients;
+            for (int overhead : PAYLOAD_SIZES) {
+                for (double intensity = INTENSITY_START; intensity <= INTENSITY_END; intensity += INTENSITY_STEP) {
+                    int duration = Math.max(MIN_DURATION_SECONDS,
+                            (int) (TOTAL_PACKETS_PER_TEST / intensity));
+                    Config.intensity = intensity / clients; // Distribute load across clients
+                    Config.countClients = clients;
 
-                runProtocolTest("MQTT", clients, intensity, duration,
-                        Config.mqtt.metricsHost, Config.mqtt.metricsPort);
+                    runIfNeeded(completed, "MQTT", clients, overhead, intensity, duration,
+                            Config.mqtt.metricsHost, Config.mqtt.metricsPort);
 
-                runProtocolTest("MQTT-UDP", clients, intensity, duration,
-                        Config.mqttUdp.metricsHost, Config.mqttUdp.metricsPort);
-
-                runProtocolTest("MQTT-QUIC", clients, intensity, duration,
-                        Config.mqttQuic.metricsHost, Config.mqttQuic.metricsPort);
+                    runIfNeeded(completed, "MQTT-UDP", clients, overhead, intensity, duration,
+                            Config.mqttUdp.metricsHost, Config.mqttUdp.metricsPort);
+                }
             }
         }
-
-        MqttQuicSender.close();
     }
 
-    private static void runProtocolTest(String protocol, int clients, double intensity,
+    private static String runKey(String protocol, int clients, int overhead, double intensity) {
+        return String.format("%s|%d|%d|%.1f", protocol, clients, overhead, intensity);
+    }
+
+    private static Set<String> loadCompletedRuns() {
+        Set<String> done = new HashSet<>();
+        File f = new File(CSV_FILE);
+        if (!f.isFile()) {
+            return done;
+        }
+        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+            String line;
+            boolean header = true;
+            while ((line = br.readLine()) != null) {
+                if (header) { header = false; continue; }
+                if (line.isBlank()) continue;
+                String[] p = line.split(",");
+                if (p.length < 6) continue;
+                try {
+                    long sent = Long.parseLong(p[4]);
+                    long received = Long.parseLong(p[5]);
+                    // Treat rows with zero sent or zero received as failed and re-run them.
+                    if (sent == 0 || received == 0) continue;
+                    done.add(runKey(p[0], Integer.parseInt(p[1]), Integer.parseInt(p[2]),
+                            Double.parseDouble(p[3])));
+                } catch (NumberFormatException ignored) {}
+            }
+        } catch (IOException e) {
+            System.err.println("Could not read existing CSV: " + e.getMessage());
+        }
+        return done;
+    }
+
+    private static void runIfNeeded(Set<String> completed, String protocol, int clients, int overhead,
+            double intensity, int durationSeconds, String metricsHost, int metricsPort) {
+        String key = runKey(protocol, clients, overhead, intensity);
+        if (completed.contains(key)) {
+            System.out.printf("[%s] Skip (already done): Clients=%d, Overhead=%dB, Int=%.1f%n",
+                    protocol, clients, overhead, intensity);
+            return;
+        }
+        runProtocolTest(protocol, clients, overhead, intensity, durationSeconds, metricsHost, metricsPort);
+        completed.add(key);
+    }
+
+    private static void runProtocolTest(String protocol, int clients, int overhead, double intensity,
             int durationSeconds, String metricsHost, int metricsPort) {
 
-        System.out.printf("[%s] Starting... (Clients: %d, Int: %.1f, Dur: %ds)%n",
-                protocol, clients, intensity, durationSeconds);
+        System.out.printf("[%s] Starting... (Clients: %d, Overhead: %dB, Int: %.1f, Dur: %ds)%n",
+                protocol, clients, overhead, intensity, durationSeconds);
 
         clearServerMetrics(metricsHost, metricsPort);
         resetServerCount(metricsHost, metricsPort);
@@ -87,7 +145,7 @@ public class PacketLossExperimentRunner {
         Config.mqttUdp.enabled = protocol.equals("MQTT-UDP");
         Config.mqttQuic.enabled = protocol.equals("MQTT-QUIC");
         Config.countClients = clients;
-        Config.bytesOverhead = 0;
+        Config.bytesOverhead = overhead;
 
         List<Thread> threads = new ArrayList<>();
 
@@ -151,7 +209,7 @@ public class PacketLossExperimentRunner {
         System.out.printf("[%s] Result: Sent=%d, Received=%d, Loss=%.4f, Delay=%.2f ms, Size=%.2f bytes%n",
                 protocol, sent, received, lossRatio, avgDelay, avgPacketSize);
 
-        saveToCsv(protocol, clients, intensity, sent, received, lossRatio, avgDelay, avgPacketSize);
+        saveToCsv(protocol, clients, overhead, intensity, sent, received, lossRatio, avgDelay, avgPacketSize);
 
         sleepSeconds(5);
     }
@@ -218,11 +276,11 @@ public class PacketLossExperimentRunner {
         return 0.0;
     }
 
-    private static void saveToCsv(String protocol, int clients, double intensity, long sent, long received,
+    private static void saveToCsv(String protocol, int clients, int overhead, double intensity, long sent, long received,
             double lossRatio, Double delay, Double size) {
         try (PrintWriter writer = new PrintWriter(new FileWriter(CSV_FILE, true))) {
-            writer.printf("%s,%d,%.1f,%d,%d,%.6f,%.4f,%.4f%n",
-                    protocol, clients, intensity, sent, received, lossRatio,
+            writer.printf("%s,%d,%d,%.1f,%d,%d,%.6f,%.4f,%.4f%n",
+                    protocol, clients, overhead, intensity, sent, received, lossRatio,
                     (delay != null ? delay : 0.0),
                     (size != null ? size : 0.0));
         } catch (IOException e) {
@@ -233,14 +291,14 @@ public class PacketLossExperimentRunner {
     private static void warmup() {
         System.out.printf("[WARMUP] Starting warm-up phase (%d seconds)...%n", WARMUP_DURATION_SECONDS);
 
-        for (String protocol : new String[] { "MQTT", "MQTT-UDP", "MQTT-QUIC" }) {
+        for (String protocol : new String[] { "MQTT", "MQTT-UDP" }) {
             Config.isRunning = true;
             Config.mqtt.enabled = protocol.equals("MQTT");
             Config.mqttUdp.enabled = protocol.equals("MQTT-UDP");
             Config.mqttQuic.enabled = protocol.equals("MQTT-QUIC");
             Config.countClients = 1;
             Config.intensity = 20.0;
-            Config.bytesOverhead = 0;
+            Config.bytesOverhead = 4096; // 4KB payload in warmup too
 
             List<Thread> threads = new ArrayList<>();
             if (Config.mqtt.enabled) {
@@ -268,10 +326,8 @@ public class PacketLossExperimentRunner {
 
         clearServerMetrics(Config.mqtt.metricsHost, Config.mqtt.metricsPort);
         clearServerMetrics(Config.mqttUdp.metricsHost, Config.mqttUdp.metricsPort);
-        clearServerMetrics(Config.mqttQuic.metricsHost, Config.mqttQuic.metricsPort);
         resetServerCount(Config.mqtt.metricsHost, Config.mqtt.metricsPort);
         resetServerCount(Config.mqttUdp.metricsHost, Config.mqttUdp.metricsPort);
-        resetServerCount(Config.mqttQuic.metricsHost, Config.mqttQuic.metricsPort);
 
         System.out.println("[WARMUP] Done. Starting main experiment.");
     }

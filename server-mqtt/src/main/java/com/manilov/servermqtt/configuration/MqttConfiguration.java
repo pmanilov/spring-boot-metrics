@@ -43,6 +43,7 @@ public class MqttConfiguration {
         options.setCleanSession(true);
         options.setKeepAliveInterval(30);
         options.setAutomaticReconnect(true);
+        options.setSocketFactory(new NoDelaySocketFactory());
         factory.setConnectionOptions(options);
         return factory;
     }

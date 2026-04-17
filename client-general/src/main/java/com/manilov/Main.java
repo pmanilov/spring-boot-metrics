@@ -127,6 +127,7 @@ public class Main {
                     connOpts.setKeepAliveInterval(10);
                     connOpts.setAutomaticReconnect(false);
                     connOpts.setMaxInflight(10_000);
+                    connOpts.setSocketFactory(new NoDelaySocketFactory());
 
                     System.out.println(clientId + ": Connecting to broker...");
 
