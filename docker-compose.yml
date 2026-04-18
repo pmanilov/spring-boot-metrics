@@ -35,17 +35,17 @@ services:
     networks:
       - mosquitto
 
-  metrics-server-mqtt-quic:
-    build:
-      context: .
-      dockerfile: quic.Dockerfile
-    ports:
-      - "8083:8083"
-      - "1885:1885/udp"
-    cap_add:
-      - NET_ADMIN
-    networks:
-      - mosquitto
+#  metrics-server-mqtt-quic:
+#    build:
+#      context: .
+#      dockerfile: quic.Dockerfile
+#    ports:
+#      - "8083:8083"
+#      - "1885:1885/udp"
+#    cap_add:
+#      - NET_ADMIN
+#    networks:
+#      - mosquitto
 
   clickhouse:
     image: clickhouse/clickhouse-server:25.8
