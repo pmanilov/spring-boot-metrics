@@ -3,8 +3,25 @@
     <http_port>8123</http_port>
     <tcp_port>9000</tcp_port>
 
+    <mark_cache_size>67108864</mark_cache_size>
+    <uncompressed_cache_size>0</uncompressed_cache_size>
+    <compiled_expression_cache_size>0</compiled_expression_cache_size>
+    <mmap_cache_size>0</mmap_cache_size>
+
+    <background_pool_size>2</background_pool_size>
+    <background_schedule_pool_size>2</background_schedule_pool_size>
+    <background_common_pool_size>2</background_common_pool_size>
+    <background_merges_mutations_concurrency_ratio>1</background_merges_mutations_concurrency_ratio>
+
+    <max_concurrent_queries>4</max_concurrent_queries>
+
+    <merge_tree>
+        <number_of_free_entries_in_pool_to_execute_mutation>1</number_of_free_entries_in_pool_to_execute_mutation>
+        <number_of_free_entries_in_pool_to_lower_max_size_of_merge>1</number_of_free_entries_in_pool_to_lower_max_size_of_merge>
+    </merge_tree>
+
     <logger>
-        <level>information</level>
+        <level>warning</level>
         <console>true</console>
     </logger>
 </clickhouse>

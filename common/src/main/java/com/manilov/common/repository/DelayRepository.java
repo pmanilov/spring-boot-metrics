@@ -35,7 +35,7 @@ public class DelayRepository {
         buffer.add(delay);
     }
 
-    @Scheduled(fixedDelay = 500)
+    @Scheduled(fixedDelay = 1000)
     public void flush() {
         drainAndWrite();
     }
