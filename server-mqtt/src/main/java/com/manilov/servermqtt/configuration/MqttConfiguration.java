@@ -112,7 +112,7 @@ public class MqttConfiguration {
                 mqttClientFactory(), metricsTopic);
         adapter.setCompletionTimeout(5000);
         adapter.setConverter(new DefaultPahoMessageConverter());
-        adapter.setQos(0);
+        adapter.setQos(1);
         return adapter;
     }
 

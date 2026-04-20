@@ -22,6 +22,7 @@ public class Config {
         public String clientIdPrefix = "JavaMqttPublisher";
         public String metricsHost = "localhost";
         public int metricsPort = 8081;
+        public volatile int qos = 0;
 
         public String brokerUrl() {
             return "tcp://" + brokerHost + ":" + brokerPort;
@@ -35,6 +36,7 @@ public class Config {
         public String topic = "metricsTopic";
         public String metricsHost = "localhost";
         public int metricsPort = 8082;
+        public volatile int qos = 0;
     }
 
     public static final class MqttQuic {

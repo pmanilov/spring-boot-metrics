@@ -104,7 +104,7 @@ public class Main {
                 long currentTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
                 String payload = currentTime + overhead;
                 try {
-                    PublishPacket pkt = new PublishPacket(Config.mqttUdp.topic, payload);
+                    PublishPacket pkt = new PublishPacket(Config.mqttUdp.topic, payload, Config.mqttUdp.qos);
                     pkt.send(target);
                     sentCountMqttUdp.incrementAndGet();
                 } catch (IOException e) {
@@ -144,7 +144,7 @@ public class Main {
                             String message = currentTime + overhead;
 
                             MqttMessage mqttMessage = new MqttMessage(message.getBytes());
-                            mqttMessage.setQos(0);
+                            mqttMessage.setQos(Config.mqtt.qos);
 
                             client.publish(Config.mqtt.topic, mqttMessage).waitForCompletion();
                             sentCountMqtt.incrementAndGet();

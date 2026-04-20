@@ -138,6 +138,26 @@ task experimentPacketLossJar(type: Jar) {
     exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
 }
 
+task experimentPacketLossQos1Jar(type: Jar) {
+    archiveBaseName = 'experiment-packet-loss-qos1'
+
+    manifest {
+        attributes(
+                'Main-Class': 'com.manilov.QosPacketLossExperimentRunner'
+        )
+    }
+
+    from sourceSets.main.output
+
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
+}
+
 runWithJavaFX.dependsOn checkJavaFX
 
 test {
