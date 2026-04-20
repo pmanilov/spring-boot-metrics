@@ -33,9 +33,7 @@ public class PacketLossExperimentRunner {
     private static final double INTENSITY_END = 10000;
     private static final double INTENSITY_STEP = 500;
 
-    // Total packets per test (to keep total packets constant across different intensities).
-    // Increased for longer, more stable runs now that QUIC is excluded.
-    private static final int TOTAL_PACKETS_PER_TEST = 200000;
+    private static final int TOTAL_PACKETS_PER_TEST = 100000;
     private static final int MIN_DURATION_SECONDS = 30;
     
     private static final int WARMUP_DURATION_SECONDS = 600;

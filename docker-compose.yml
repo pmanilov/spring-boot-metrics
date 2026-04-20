@@ -50,8 +50,8 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:25.8
     container_name: clickhouse
-    mem_limit: 1500m
-    memswap_limit: 1500m
+    mem_limit: 2g
+    memswap_limit: 2g
     ports:
       - "8123:8123"
       - "9000:9000"
