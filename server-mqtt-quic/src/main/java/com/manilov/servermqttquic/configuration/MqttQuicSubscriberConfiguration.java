@@ -1,0 +1,172 @@
+package com.manilov.servermqttquic.configuration;
+
+import com.manilov.common.mqttquic.MqttQuicClient;
+import com.manilov.common.service.DelayService;
+import com.manilov.servermqttquic.handler.PacketSizeHandler;
+import io.netty.handler.codec.mqtt.MqttQoS;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Configuration;
+
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
+@Slf4j
+@Configuration
+@RequiredArgsConstructor
+public class MqttQuicSubscriberConfiguration {
+
+    private final DelayService delayService;
+    private final PacketSizeHandler packetSizeHandler;
+
+    @Value("${server.id}")
+    private String serverId;
+    @Value("${metrics.topic}")
+    private String metricsTopic;
+    @Value("${emqx.host}")
+    private String emqxHost;
+    @Value("${emqx.port}")
+    private int emqxPort;
+    @Value("${emqx.alpn}")
+    private String emqxAlpn;
+    @Value("${emqx.client-id}")
+    private String clientId;
+
+    private volatile boolean running;
+    private volatile MqttQuicClient client;
+    private volatile MqttQuicClient.Session session;
+    private ExecutorService executor;
+    private ExecutorService messageExecutor;
+
+    @PostConstruct
+    public void start() {
+        running = true;
+        executor = Executors.newSingleThreadExecutor();
+        messageExecutor = Executors.newVirtualThreadPerTaskExecutor();
+        executor.submit(this::runLoop);
+    }
+
+    @PreDestroy
+    public void stop() {
+        running = false;
+        closeSession();
+        closeClient();
+        if (executor != null) {
+            executor.shutdownNow();
+            try {
+                executor.awaitTermination(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        if (messageExecutor != null) {
+            messageExecutor.shutdownNow();
+            try {
+                messageExecutor.awaitTermination(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    private void runLoop() {
+        while (running) {
+            try {
+                ensureClient();
+                MqttQuicClient.Session activeSession = client.openSession(clientId);
+                session = activeSession;
+                activeSession.setMessageListener((topic, payload, qos, duplicate, packetId) -> {
+                    try {
+                        if (messageExecutor != null && !messageExecutor.isShutdown()) {
+                            messageExecutor.submit(() -> handleMessage(topic, payload));
+                        }
+                    } catch (RuntimeException e) {
+                        log.warn("Failed to dispatch MQTT-QUIC message for processing: {}", e.getMessage());
+                    }
+                });
+                activeSession.subscribe(metricsTopic, MqttQoS.EXACTLY_ONCE);
+                log.info("Connected to EMQX MQTT-over-QUIC broker {}:{} and subscribed to '{}'",
+                        emqxHost, emqxPort, metricsTopic);
+                activeSession.closedFuture().join();
+            } catch (Exception e) {
+                if (running) {
+                    log.warn("MQTT-QUIC subscriber loop failed: {}", e.getMessage());
+                }
+            } finally {
+                closeSession();
+                closeClient();
+            }
+
+            if (running) {
+                try {
+                    TimeUnit.SECONDS.sleep(1);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }
+    }
+
+    private void ensureClient() throws Exception {
+        if (client == null) {
+            client = new MqttQuicClient(emqxHost, emqxPort, emqxAlpn);
+        }
+    }
+
+    private void handleMessage(String topic, byte[] payload) {
+        if (!metricsTopic.equals(topic)) {
+            return;
+        }
+
+        String payloadStr = new String(payload, StandardCharsets.UTF_8);
+        long sentTs;
+        try {
+            sentTs = Long.parseLong(payloadStr.split(",")[0]);
+        } catch (NumberFormatException e) {
+            log.warn("Unparseable metrics payload '{}': {}", payloadStr, e.getMessage());
+            return;
+        }
+
+        try {
+            delayService.save(sentTs, serverId);
+        } catch (Exception e) {
+            log.warn("delayService.save failed: {}", e.getMessage());
+        }
+
+        try {
+            packetSizeHandler.handleMessage(topic, payload);
+        } catch (Exception e) {
+            log.warn("packetSizeHandler failed: {}", e.getMessage());
+        }
+    }
+
+    private void closeSession() {
+        MqttQuicClient.Session current = session;
+        session = null;
+        if (current != null) {
+            try {
+                current.close();
+            } catch (Exception e) {
+                log.debug("Ignoring MQTT-QUIC session close failure: {}", e.getMessage());
+            }
+        }
+    }
+
+    private void closeClient() {
+        MqttQuicClient current = client;
+        client = null;
+        if (current != null) {
+            try {
+                current.close();
+            } catch (Exception e) {
+                log.debug("Ignoring MQTT-QUIC client close failure: {}", e.getMessage());
+            }
+        }
+    }
+}

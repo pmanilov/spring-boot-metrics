@@ -3,3 +3,5 @@ mosquitto/
 .git/
 .idea/
 target/
+diplom/
+.codex

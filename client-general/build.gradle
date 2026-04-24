@@ -23,17 +23,10 @@ jar {
 }
 
 dependencies {
+    implementation project(':common')
     implementation name: 'mqtt_udp-0.5.2'
     implementation group: 'org.eclipse.paho', name: 'org.eclipse.paho.client.mqttv3', version: '1.2.5'
     implementation('org.controlsfx:controlsfx:11.1.2')
-
-    // Netty QUIC client (incubator) for MQTT-over-QUIC transport
-    implementation 'io.netty:netty-all:4.1.121.Final'
-    implementation 'io.netty.incubator:netty-incubator-codec-classes-quic:0.0.72.Final'
-    runtimeOnly 'io.netty.incubator:netty-incubator-codec-native-quic:0.0.72.Final:linux-x86_64'
-    runtimeOnly 'io.netty.incubator:netty-incubator-codec-native-quic:0.0.72.Final:linux-aarch_64'
-    runtimeOnly 'io.netty.incubator:netty-incubator-codec-native-quic:0.0.72.Final:osx-x86_64'
-    runtimeOnly 'io.netty.incubator:netty-incubator-codec-native-quic:0.0.72.Final:osx-aarch_64'
 
     testImplementation platform('org.junit:junit-bom:5.9.1')
     testImplementation 'org.junit.jupiter:junit-jupiter'

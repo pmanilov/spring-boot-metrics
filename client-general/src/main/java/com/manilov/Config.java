@@ -42,11 +42,12 @@ public class Config {
     public static final class MqttQuic {
         public boolean enabled = true;
         public String host = "localhost";
-        public int port = 1885;
+        public int port = 14567;
         public String alpn = "mqtt";
         public String topic = "metricsTopic";
         public String clientIdPrefix = "JavaMqttQuicPublisher";
         public String metricsHost = "localhost";
         public int metricsPort = 8083;
+        public volatile int qos = 0;
     }
 }

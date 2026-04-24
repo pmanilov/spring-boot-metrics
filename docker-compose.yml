@@ -35,17 +35,35 @@ services:
     networks:
       - mosquitto
 
-#  metrics-server-mqtt-quic:
-#    build:
-#      context: .
-#      dockerfile: quic.Dockerfile
-#    ports:
-#      - "8083:8083"
-#      - "1885:1885/udp"
-#    cap_add:
-#      - NET_ADMIN
-#    networks:
-#      - mosquitto
+  emqx:
+    image: emqx/emqx:5.8.0
+    ports:
+      - "1883:1883"
+      - "14567:14567/udp"
+      - "18083:18083"
+    environment:
+      - EMQX_LISTENERS__QUIC__DEFAULT__ENABLED=true
+      - EMQX_LISTENERS__QUIC__DEFAULT__BIND=0.0.0.0:14567
+      - EMQX_LISTENERS__QUIC__DEFAULT__MAX_CONNECTIONS=10000
+      - EMQX_ALLOW_ANONYMOUS=true
+    networks:
+      - mosquitto
+    cap_add:
+      - NET_ADMIN
+
+  metrics-server-mqtt-quic:
+    build:
+      context: .
+      dockerfile: quic.Dockerfile
+    ports:
+      - "8083:8083"
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - mosquitto
+    depends_on:
+      - emqx
+      - clickhouse
 
   clickhouse:
     image: clickhouse/clickhouse-server:25.8

@@ -1,5 +1,6 @@
 package com.manilov;
 
+import io.netty.handler.codec.mqtt.MqttQoS;
 import org.eclipse.paho.client.mqttv3.*;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import ru.dz.mqtt_udp.Engine;
@@ -32,6 +33,13 @@ public class Main {
             Engine.setThrottle(0);
             for (int i = 0; i < Config.countClients; i++) {
                 Thread.startVirtualThread(getTaskMqttUdp());
+            }
+        }
+
+        if (Config.mqttQuic.enabled) {
+            for (int i = 0; i < Config.countClients; i++) {
+                final String clientId = Config.mqttQuic.clientIdPrefix + i;
+                Thread.startVirtualThread(getTaskMqttQuic(clientId));
             }
         }
     }
@@ -67,7 +75,8 @@ public class Main {
                     long currentTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
                     String payload = currentTime + overhead;
                     try {
-                        session.publish(Config.mqttQuic.topic, payload.getBytes());
+                        session.publish(Config.mqttQuic.topic, payload.getBytes(),
+                                MqttQoS.valueOf(Config.mqttQuic.qos));
                         sentCountMqttQuic.incrementAndGet();
                     } catch (Exception e) {
                         System.err.println("MQTT-QUIC publish error: " + e.getMessage());
