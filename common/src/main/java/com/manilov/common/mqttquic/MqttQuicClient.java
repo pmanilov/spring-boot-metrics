@@ -54,6 +54,7 @@ public final class MqttQuicClient implements AutoCloseable {
 
     private static final int MAX_MQTT_PACKET_SIZE = 1_048_576;
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration STREAM_OPEN_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration ACK_TIMEOUT = Duration.ofSeconds(2);
     private static final Duration WRITE_TIMEOUT = Duration.ofSeconds(5);
     private static final int MAX_RETRIES = 5;
@@ -101,6 +102,8 @@ public final class MqttQuicClient implements AutoCloseable {
                 .connect()
                 .get();
 
+        waitForPeerStreamAllowance(quicChannel, QuicStreamType.BIDIRECTIONAL, STREAM_OPEN_TIMEOUT);
+
         SessionState state = new SessionState();
         QuicStreamChannel stream = quicChannel.createStream(
                 QuicStreamType.BIDIRECTIONAL,
@@ -135,6 +138,21 @@ public final class MqttQuicClient implements AutoCloseable {
         }
 
         return session;
+    }
+
+    private static void waitForPeerStreamAllowance(QuicChannel quicChannel, QuicStreamType type, Duration timeout)
+            throws InterruptedException {
+        long deadlineNanos = System.nanoTime() + timeout.toNanos();
+        while (quicChannel.isOpen()) {
+            if (quicChannel.peerAllowedStreams(type) > 0) {
+                return;
+            }
+            if (System.nanoTime() >= deadlineNanos) {
+                throw new IllegalStateException("Timed out waiting for peer stream allowance for " + type);
+            }
+            Thread.sleep(10);
+        }
+        throw new IllegalStateException("QUIC connection closed before peer granted stream allowance for " + type);
     }
 
     @Override
