@@ -23,17 +23,17 @@ services:
     cap_add:
       - NET_ADMIN
 
-  metrics-server-mqtt-udp:
-    build:
-      context: .
-      dockerfile: mqtt-udp.Dockerfile
-    ports:
-      - "8082:8082"
-      - "1883:1883/udp"
-    cap_add:
-      - NET_ADMIN
-    networks:
-      - mosquitto
+#  metrics-server-mqtt-udp:
+#    build:
+#      context: .
+#      dockerfile: mqtt-udp.Dockerfile
+#    ports:
+#      - "8082:8082"
+#      - "1883:1883/udp"
+#    cap_add:
+#      - NET_ADMIN
+#    networks:
+#      - mosquitto
 
   emqx:
     image: emqx/emqx:5.8.0
