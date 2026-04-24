@@ -14,12 +14,15 @@ import org.springframework.context.annotation.Configuration;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
 public class MqttQuicSubscriberConfiguration {
+    private static final int PING_INTERVAL_SECONDS = 20;
 
     private final DelayService delayService;
     private final PacketSizeHandler packetSizeHandler;
@@ -42,12 +45,15 @@ public class MqttQuicSubscriberConfiguration {
     private volatile MqttQuicClient.Session session;
     private ExecutorService executor;
     private ExecutorService messageExecutor;
+    private ScheduledExecutorService keepAliveExecutor;
+    private ScheduledFuture<?> keepAliveFuture;
 
     @PostConstruct
     public void start() {
         running = true;
         executor = Executors.newSingleThreadExecutor();
         messageExecutor = Executors.newVirtualThreadPerTaskExecutor();
+        keepAliveExecutor = Executors.newSingleThreadScheduledExecutor();
         executor.submit(this::runLoop);
     }
 
@@ -72,6 +78,14 @@ public class MqttQuicSubscriberConfiguration {
                 Thread.currentThread().interrupt();
             }
         }
+        if (keepAliveExecutor != null) {
+            keepAliveExecutor.shutdownNow();
+            try {
+                keepAliveExecutor.awaitTermination(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     private void runLoop() {
@@ -90,6 +104,7 @@ public class MqttQuicSubscriberConfiguration {
                     }
                 });
                 activeSession.subscribe(metricsTopic, MqttQoS.EXACTLY_ONCE);
+                startKeepAlive(activeSession);
                 log.info("Connected to EMQX MQTT-over-QUIC broker {}:{} and subscribed to '{}'",
                         emqxHost, emqxPort, metricsTopic);
                 activeSession.closedFuture().join();
@@ -98,6 +113,7 @@ public class MqttQuicSubscriberConfiguration {
                     log.warn("MQTT-QUIC subscriber loop failed: {}", e.getMessage());
                 }
             } finally {
+                stopKeepAlive();
                 closeSession();
                 closeClient();
             }
@@ -155,6 +171,31 @@ public class MqttQuicSubscriberConfiguration {
             } catch (Exception e) {
                 log.debug("Ignoring MQTT-QUIC session close failure: {}", e.getMessage());
             }
+        }
+    }
+
+    private void startKeepAlive(MqttQuicClient.Session activeSession) {
+        stopKeepAlive();
+        if (keepAliveExecutor == null || keepAliveExecutor.isShutdown()) {
+            return;
+        }
+        keepAliveFuture = keepAliveExecutor.scheduleAtFixedRate(() -> {
+            if (!running || session != activeSession) {
+                return;
+            }
+            try {
+                activeSession.ping();
+            } catch (Exception e) {
+                log.debug("MQTT-QUIC keepalive ping failed: {}", e.getMessage());
+            }
+        }, PING_INTERVAL_SECONDS, PING_INTERVAL_SECONDS, TimeUnit.SECONDS);
+    }
+
+    private void stopKeepAlive() {
+        ScheduledFuture<?> current = keepAliveFuture;
+        keepAliveFuture = null;
+        if (current != null) {
+            current.cancel(true);
         }
     }
 
