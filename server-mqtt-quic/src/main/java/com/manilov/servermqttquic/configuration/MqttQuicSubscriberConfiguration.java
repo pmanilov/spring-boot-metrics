@@ -110,7 +110,7 @@ public class MqttQuicSubscriberConfiguration {
                 activeSession.closedFuture().join();
             } catch (Exception e) {
                 if (running) {
-                    log.warn("MQTT-QUIC subscriber loop failed: {}", e.getMessage());
+                    log.warn("MQTT-QUIC subscriber loop failed: {}", rootMessage(e));
                 }
             } finally {
                 stopKeepAlive();
@@ -209,5 +209,14 @@ public class MqttQuicSubscriberConfiguration {
                 log.debug("Ignoring MQTT-QUIC client close failure: {}", e.getMessage());
             }
         }
+    }
+
+    private static String rootMessage(Throwable throwable) {
+        Throwable current = throwable;
+        while (current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        String message = current.getMessage();
+        return current.getClass().getSimpleName() + (message != null ? ": " + message : "");
     }
 }

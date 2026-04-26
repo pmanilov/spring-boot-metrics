@@ -11,7 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
@@ -20,10 +20,11 @@ import java.util.concurrent.atomic.AtomicLong;
 public class DelayRepository {
     private static final String INSERT_SQL =
             "INSERT INTO delays (ts, server_id, delay_ms) VALUES (?, ?, ?)";
-    private static final int MAX_BATCH = 2000;
+    private static final int MAX_BATCH = 10_000;
+    private static final int MAX_BATCHES_PER_FLUSH = 4;
 
     private final JdbcTemplate jdbcTemplate;
-    private final ConcurrentLinkedQueue<Delay> buffer = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedDeque<Delay> buffer = new ConcurrentLinkedDeque<>();
     private final AtomicLong failedRows = new AtomicLong();
 
     public Double selectAverageDelay(String serverId) {
@@ -35,7 +36,7 @@ public class DelayRepository {
         buffer.add(delay);
     }
 
-    @Scheduled(fixedDelay = 1000)
+    @Scheduled(fixedDelay = 2000)
     public void flush() {
         drainAndWrite();
     }
@@ -47,7 +48,7 @@ public class DelayRepository {
 
     public void deleteAll(String serverId) {
         drainAndWrite();
-        jdbcTemplate.update("ALTER TABLE delays DELETE WHERE server_id = ?", serverId);
+        jdbcTemplate.update("TRUNCATE TABLE delays");
     }
 
     public long getFailedRowCount() {
@@ -55,10 +56,10 @@ public class DelayRepository {
     }
 
     private synchronized void drainAndWrite() {
-        while (!buffer.isEmpty()) {
+        for (int flushedBatches = 0; flushedBatches < MAX_BATCHES_PER_FLUSH; flushedBatches++) {
             List<Delay> batch = new ArrayList<>(MAX_BATCH);
             for (int i = 0; i < MAX_BATCH; i++) {
-                Delay delay = buffer.poll();
+                Delay delay = buffer.pollFirst();
                 if (delay == null) {
                     break;
                 }
@@ -75,8 +76,17 @@ public class DelayRepository {
                 });
             } catch (Exception e) {
                 failedRows.addAndGet(batch.size());
-                log.warn("Failed to flush delays batch of {}: {}", batch.size(), e.getMessage());
+                requeueAtFront(batch);
+                log.warn("Failed to flush delays batch of {} (buffer now {}): {}",
+                        batch.size(), buffer.size(), e.getMessage());
+                return;
             }
+        }
+    }
+
+    private void requeueAtFront(List<Delay> batch) {
+        for (int i = batch.size() - 1; i >= 0; i--) {
+            buffer.addFirst(batch.get(i));
         }
     }
 }

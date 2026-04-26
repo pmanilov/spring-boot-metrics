@@ -11,7 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
@@ -20,10 +20,11 @@ import java.util.concurrent.atomic.AtomicLong;
 public class PacketSizeRepository {
     private static final String INSERT_SQL =
             "INSERT INTO packet_sizes (ts, server_id, packet_size) VALUES (?, ?, ?)";
-    private static final int MAX_BATCH = 2000;
+    private static final int MAX_BATCH = 10_000;
+    private static final int MAX_BATCHES_PER_FLUSH = 4;
 
     private final JdbcTemplate jdbcTemplate;
-    private final ConcurrentLinkedQueue<PacketSize> buffer = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedDeque<PacketSize> buffer = new ConcurrentLinkedDeque<>();
     private final AtomicLong failedRows = new AtomicLong();
 
     public Double selectAveragePacketSize(String serverId) {
@@ -35,7 +36,7 @@ public class PacketSizeRepository {
         buffer.add(packetSize);
     }
 
-    @Scheduled(fixedDelay = 500)
+    @Scheduled(fixedDelay = 2000)
     public void flush() {
         drainAndWrite();
     }
@@ -47,7 +48,7 @@ public class PacketSizeRepository {
 
     public void deleteAll(String serverId) {
         drainAndWrite();
-        jdbcTemplate.update("ALTER TABLE packet_sizes DELETE WHERE server_id = ?", serverId);
+        jdbcTemplate.update("TRUNCATE TABLE packet_sizes");
     }
 
     public long getFailedRowCount() {
@@ -55,10 +56,10 @@ public class PacketSizeRepository {
     }
 
     private synchronized void drainAndWrite() {
-        while (!buffer.isEmpty()) {
+        for (int flushedBatches = 0; flushedBatches < MAX_BATCHES_PER_FLUSH; flushedBatches++) {
             List<PacketSize> batch = new ArrayList<>(MAX_BATCH);
             for (int i = 0; i < MAX_BATCH; i++) {
-                PacketSize packetSize = buffer.poll();
+                PacketSize packetSize = buffer.pollFirst();
                 if (packetSize == null) {
                     break;
                 }
@@ -75,8 +76,17 @@ public class PacketSizeRepository {
                 });
             } catch (Exception e) {
                 failedRows.addAndGet(batch.size());
-                log.warn("Failed to flush packet_sizes batch of {}: {}", batch.size(), e.getMessage());
+                requeueAtFront(batch);
+                log.warn("Failed to flush packet_sizes batch of {} (buffer now {}): {}",
+                        batch.size(), buffer.size(), e.getMessage());
+                return;
             }
+        }
+    }
+
+    private void requeueAtFront(List<PacketSize> batch) {
+        for (int i = batch.size() - 1; i >= 0; i--) {
+            buffer.addFirst(batch.get(i));
         }
     }
 }

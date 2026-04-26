@@ -34,7 +34,9 @@ import io.netty.incubator.codec.quic.QuicSslContextBuilder;
 import io.netty.incubator.codec.quic.QuicStreamChannel;
 import io.netty.incubator.codec.quic.QuicStreamType;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
@@ -66,7 +68,7 @@ public final class MqttQuicClient implements AutoCloseable {
     private final InetSocketAddress remote;
 
     public MqttQuicClient(String host, int port, String alpn) throws Exception {
-        this.remote = new InetSocketAddress(host, port);
+        this.remote = resolveRemote(host, port);
         this.sslContext = QuicSslContextBuilder.forClient()
                 .trustManager(InsecureTrustManagerFactory.INSTANCE)
                 .applicationProtocols(alpn)
@@ -138,6 +140,11 @@ public final class MqttQuicClient implements AutoCloseable {
         }
 
         return session;
+    }
+
+    private static InetSocketAddress resolveRemote(String host, int port) throws UnknownHostException {
+        InetAddress address = InetAddress.getByName(host);
+        return new InetSocketAddress(address, port);
     }
 
     private static void waitForPeerStreamAllowance(QuicChannel quicChannel, QuicStreamType type, Duration timeout)

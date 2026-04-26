@@ -20,6 +20,7 @@ services:
       - mosquitto
     depends_on:
       - mosquitto
+      - clickhouse
     cap_add:
       - NET_ADMIN
 
