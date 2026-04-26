@@ -17,7 +17,7 @@ public class Config {
     public static final class Mqtt {
         public boolean enabled = true;
         public String brokerHost = "localhost";
-        public int brokerPort = 1884;
+        public int brokerPort = 1883;
         public String topic = "metricsTopic";
         public String clientIdPrefix = "JavaMqttPublisher";
         public String metricsHost = "localhost";

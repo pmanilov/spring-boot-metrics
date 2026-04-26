@@ -1,15 +1,4 @@
 services:
-  mosquitto:
-    image: eclipse-mosquitto
-    ports:
-      - "1884:1884"
-    volumes:
-      - ./mosquitto/:/mosquitto/config
-    networks:
-      - mosquitto
-    cap_add:
-      - NET_ADMIN
-
   metrics-server-mqtt:
     build:
       context: .
@@ -17,9 +6,9 @@ services:
     ports:
       - "8081:8081"
     networks:
-      - mosquitto
+      - mqtt
     depends_on:
-      - mosquitto
+      - emqx
       - clickhouse
     cap_add:
       - NET_ADMIN
@@ -34,7 +23,7 @@ services:
 #    cap_add:
 #      - NET_ADMIN
 #    networks:
-#      - mosquitto
+#      - mqtt
 
   emqx:
     image: emqx/emqx:5.8.0
@@ -48,7 +37,7 @@ services:
       - EMQX_LISTENERS__QUIC__DEFAULT__MAX_CONNECTIONS=10000
       - EMQX_ALLOW_ANONYMOUS=true
     networks:
-      - mosquitto
+      - mqtt
     cap_add:
       - NET_ADMIN
 
@@ -61,7 +50,7 @@ services:
     cap_add:
       - NET_ADMIN
     networks:
-      - mosquitto
+      - mqtt
     depends_on:
       - emqx
       - clickhouse
@@ -80,10 +69,10 @@ services:
       - ./clickhouse_config/users.xml:/etc/clickhouse-server/users.d/users.xml
       - ./clickhouse_init:/docker-entrypoint-initdb.d
     networks:
-      - mosquitto
+      - mqtt
 
 networks:
-  mosquitto:
+  mqtt:
     driver: bridge
     ipam:
       config:
