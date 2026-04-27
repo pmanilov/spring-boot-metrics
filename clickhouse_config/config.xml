@@ -6,8 +6,13 @@
     <max_server_memory_usage>800000000</max_server_memory_usage>
     <mark_cache_size>67108864</mark_cache_size>
     <uncompressed_cache_size>0</uncompressed_cache_size>
-    <background_pool_size>1</background_pool_size>
+    <background_pool_size>2</background_pool_size>
     <background_merges_mutations_concurrency_ratio>1</background_merges_mutations_concurrency_ratio>
+
+    <merge_tree>
+        <number_of_free_entries_in_pool_to_execute_mutation>0</number_of_free_entries_in_pool_to_execute_mutation>
+        <number_of_free_entries_in_pool_to_lower_max_size_of_merge>0</number_of_free_entries_in_pool_to_lower_max_size_of_merge>
+    </merge_tree>
 
     <logger>
         <level>warning</level>
