@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS metrics.delays
     delay_ms Float64
 )
 ENGINE = MergeTree()
-PARTITION BY toStartOfHour(ts)
+PARTITION BY tuple()
 ORDER BY ts
 TTL toDateTime(ts) + INTERVAL 1 HOUR DELETE
 SETTINGS ttl_only_drop_parts = 1;
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS metrics.packet_sizes
     packet_size Int32
 )
 ENGINE = MergeTree()
-PARTITION BY toStartOfHour(ts)
+PARTITION BY tuple()
 ORDER BY ts
 TTL toDateTime(ts) + INTERVAL 1 HOUR DELETE
 SETTINGS ttl_only_drop_parts = 1;

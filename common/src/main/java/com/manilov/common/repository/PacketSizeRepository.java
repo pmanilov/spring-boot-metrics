@@ -9,9 +9,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
@@ -21,22 +23,29 @@ public class PacketSizeRepository {
     private static final String INSERT_SQL =
             "INSERT INTO packet_sizes (ts, server_id, packet_size) VALUES (?, ?, ?)";
     private static final int MAX_BATCH = 10_000;
-    private static final int MAX_BATCHES_PER_FLUSH = 4;
+    private static final int MAX_BATCHES_PER_FLUSH = 1;
+    private static final int MAX_BUFFERED_ROWS = 50_000;
+    private static final Duration FAILURE_BACKOFF = Duration.ofSeconds(30);
 
     private final JdbcTemplate jdbcTemplate;
     private final ConcurrentLinkedDeque<PacketSize> buffer = new ConcurrentLinkedDeque<>();
+    private final AtomicInteger bufferedRows = new AtomicInteger();
     private final AtomicLong failedRows = new AtomicLong();
-
-    public Double selectAveragePacketSize(String serverId) {
-        return jdbcTemplate.queryForObject(
-                "SELECT AVG(packet_size) FROM packet_sizes WHERE server_id = ?", Double.class, serverId);
-    }
+    private volatile long nextFlushAttemptNanos;
 
     public void save(PacketSize packetSize) {
-        buffer.add(packetSize);
+        buffer.addLast(packetSize);
+        int size = bufferedRows.incrementAndGet();
+        if (size > MAX_BUFFERED_ROWS) {
+            PacketSize dropped = buffer.pollFirst();
+            if (dropped != null) {
+                bufferedRows.decrementAndGet();
+                failedRows.incrementAndGet();
+            }
+        }
     }
 
-    @Scheduled(fixedDelay = 2000)
+    @Scheduled(fixedDelay = 10_000)
     public void flush() {
         drainAndWrite();
     }
@@ -47,7 +56,7 @@ public class PacketSizeRepository {
     }
 
     public void deleteAll(String serverId) {
-        drainAndWrite();
+        discardBufferedRows();
         jdbcTemplate.update("TRUNCATE TABLE packet_sizes");
     }
 
@@ -56,6 +65,10 @@ public class PacketSizeRepository {
     }
 
     private synchronized void drainAndWrite() {
+        long now = System.nanoTime();
+        if (now < nextFlushAttemptNanos) {
+            return;
+        }
         for (int flushedBatches = 0; flushedBatches < MAX_BATCHES_PER_FLUSH; flushedBatches++) {
             List<PacketSize> batch = new ArrayList<>(MAX_BATCH);
             for (int i = 0; i < MAX_BATCH; i++) {
@@ -63,6 +76,7 @@ public class PacketSizeRepository {
                 if (packetSize == null) {
                     break;
                 }
+                bufferedRows.decrementAndGet();
                 batch.add(packetSize);
             }
             if (batch.isEmpty()) {
@@ -76,17 +90,24 @@ public class PacketSizeRepository {
                 });
             } catch (Exception e) {
                 failedRows.addAndGet(batch.size());
-                requeueAtFront(batch);
-                log.warn("Failed to flush packet_sizes batch of {} (buffer now {}): {}",
-                        batch.size(), buffer.size(), e.getMessage());
+                nextFlushAttemptNanos = System.nanoTime() + FAILURE_BACKOFF.toNanos();
+                log.warn("Dropping packet_sizes batch of {} after ClickHouse failure; buffer now {}, next retry in {}s: {}",
+                        batch.size(), bufferedRows.get(), FAILURE_BACKOFF.toSeconds(), e.getMessage());
                 return;
             }
         }
     }
 
-    private void requeueAtFront(List<PacketSize> batch) {
-        for (int i = batch.size() - 1; i >= 0; i--) {
-            buffer.addFirst(batch.get(i));
+    private synchronized void discardBufferedRows() {
+        int discarded = 0;
+        while (buffer.pollFirst() != null) {
+            discarded++;
+        }
+        if (discarded > 0) {
+            int rows = discarded;
+            bufferedRows.updateAndGet(current -> Math.max(0, current - rows));
+            failedRows.addAndGet(discarded);
+            log.warn("Discarded {} buffered packet_size rows before TRUNCATE", discarded);
         }
     }
 }

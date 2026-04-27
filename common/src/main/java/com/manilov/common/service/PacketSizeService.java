@@ -5,20 +5,32 @@ import com.manilov.common.repository.PacketSizeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.concurrent.atomic.LongAdder;
+
 @Service
 @RequiredArgsConstructor
 public class PacketSizeService {
     private final PacketSizeRepository packetSizeRepository;
+    private final LongAdder packetSizeSum = new LongAdder();
+    private final LongAdder packetSizeCount = new LongAdder();
 
     public Double getAveragePacketSize(String serverId) {
-        return packetSizeRepository.selectAveragePacketSize(serverId);
+        long count = packetSizeCount.sum();
+        if (count == 0) {
+            return 0.0;
+        }
+        return (double) packetSizeSum.sum() / count;
     }
 
     public void save(PacketSize packetSize) {
+        packetSizeSum.add(packetSize.getPacketSize());
+        packetSizeCount.increment();
         packetSizeRepository.save(packetSize);
     }
 
     public void deleteAll(String serverId) {
+        packetSizeSum.reset();
+        packetSizeCount.reset();
         packetSizeRepository.deleteAll(serverId);
     }
 }

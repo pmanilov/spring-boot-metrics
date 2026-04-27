@@ -21,7 +21,7 @@ public class ClickHouseConfig {
         config.setPassword("");
         config.setDriverClassName("com.clickhouse.jdbc.Driver");
 
-        config.setMaximumPoolSize(4);
+        config.setMaximumPoolSize(2);
         config.setMinimumIdle(1);
         config.setIdleTimeout(60000);
         config.setConnectionTimeout(30000);

@@ -3,6 +3,12 @@
     <http_port>8123</http_port>
     <tcp_port>9000</tcp_port>
 
+    <max_server_memory_usage>800000000</max_server_memory_usage>
+    <mark_cache_size>67108864</mark_cache_size>
+    <uncompressed_cache_size>0</uncompressed_cache_size>
+    <background_pool_size>1</background_pool_size>
+    <background_merges_mutations_concurrency_ratio>1</background_merges_mutations_concurrency_ratio>
+
     <logger>
         <level>warning</level>
         <console>true</console>

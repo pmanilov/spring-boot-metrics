@@ -20,3 +20,4 @@ build/
 # Data
 clickhouse_data/
 tmpFiles/
+/diplom/
