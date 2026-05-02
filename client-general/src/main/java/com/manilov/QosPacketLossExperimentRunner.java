@@ -18,8 +18,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 public class QosPacketLossExperimentRunner {
-    private static final int[] CLIENT_COUNTS = {1, 2, 5, 10};
-    private static final int[] PAYLOAD_SIZES = {0, 2048, 4096, 8192};
+    private static final int[] CLIENT_COUNTS = {1, 2, 5, 10, 15};
+    private static final int[] PAYLOAD_SIZES = {0, 2048, 4096, 8192, 16384};
     private static final int[] QOS_LEVELS = {0, 1, 2};
     private static final String[] PROTOCOLS = {"MQTT", "MQTT-QUIC"};
     private static final double INTENSITY_START = 100;
@@ -27,12 +27,15 @@ public class QosPacketLossExperimentRunner {
     private static final double INTENSITY_STEP = 100;
 
     // Reduced timing budget for validation runs.
-    private static final int TOTAL_PACKETS_PER_TEST = 10000;
-    private static final int MIN_DURATION_SECONDS = 15;
+    private static final int TOTAL_PACKETS_PER_TEST = 20000;
+    private static final int MIN_DURATION_SECONDS = 30;
     private static final int WARMUP_DURATION_SECONDS = 600;
-    private static final int DRAIN_SECONDS = 15;
+    private static final int DRAIN_SECONDS = 30;
     private static final int POST_RUN_PAUSE_SECONDS = 10;
     private static final String CSV_FILE = "experiment_results_packet_loss_qos_all.csv";
+    private static final String CSV_HEADER = "Protocol,QoS,Clients,Overhead(bytes),IntensityPerClient(req/sec),"
+            + "TargetAggregateRate(req/sec),ActualSendRate(req/sec),ActualReceiveRate(req/sec),Sent,Received,"
+            + "LossRatio,AvgDelay(ms),AvgPacketSize(bytes)";
 
     private static final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -44,13 +47,14 @@ public class QosPacketLossExperimentRunner {
 
         if (!resuming) {
             try (PrintWriter writer = new PrintWriter(new FileWriter(CSV_FILE))) {
-                writer.println("Protocol,QoS,Clients,Overhead(bytes),Intensity(req/sec),Sent,Received,LossRatio,AvgDelay(ms),AvgPacketSize(bytes)");
+                writer.println(CSV_HEADER);
             } catch (IOException e) {
                 System.err.println("Could not create CSV file: " + e.getMessage());
                 return;
             }
             warmup();
         } else {
+            ensureCurrentCsvHeader();
             System.out.printf("[RESUME] Found %d completed runs in %s, skipping warmup.%n",
                     completed.size(), CSV_FILE);
         }
@@ -97,13 +101,14 @@ public class QosPacketLossExperimentRunner {
                 if (line.isBlank()) {
                     continue;
                 }
-                String[] p = line.split(",");
+                String[] p = line.split(",", -1);
                 if (p.length < 10) {
                     continue;
                 }
                 try {
-                    long sent = Long.parseLong(p[5]);
-                    long received = Long.parseLong(p[6]);
+                    boolean rateSchema = p.length >= 13;
+                    long sent = Long.parseLong(rateSchema ? p[8] : p[5]);
+                    long received = Long.parseLong(rateSchema ? p[9] : p[6]);
                     if (sent == 0 || received == 0) {
                         continue;
                     }
@@ -203,11 +208,16 @@ public class QosPacketLossExperimentRunner {
 
         Double avgDelay = getMetric(metricsHost, metricsPort, "delay/avg");
         Double avgPacketSize = getMetric(metricsHost, metricsPort, "packet-size/avg");
+        double targetAggregateRate = intensity * clients;
+        double actualSendRate = durationSeconds > 0 ? (double) sent / durationSeconds : 0.0;
+        double actualReceiveRate = durationSeconds > 0 ? (double) received / durationSeconds : 0.0;
 
-        System.out.printf("[%s QoS %d] Result: Sent=%d, Received=%d, Loss=%.4f, Delay=%.2f ms, Size=%.2f bytes%n",
-                protocol, qos, sent, received, lossRatio, avgDelay, avgPacketSize);
+        System.out.printf("[%s QoS %d] Result: Sent=%d, Received=%d, Loss=%.4f, Delay=%.2f ms, "
+                        + "Size=%.2f bytes, Out=%.2f msg/s%n",
+                protocol, qos, sent, received, lossRatio, avgDelay, avgPacketSize, actualReceiveRate);
 
-        saveToCsv(protocol, qos, clients, overhead, intensity, sent, received, lossRatio, avgDelay, avgPacketSize);
+        saveToCsv(protocol, qos, clients, overhead, intensity, sent, received, lossRatio, avgDelay, avgPacketSize,
+                targetAggregateRate, actualSendRate, actualReceiveRate);
 
         sleepSeconds(POST_RUN_PAUSE_SECONDS);
     }
@@ -273,15 +283,80 @@ public class QosPacketLossExperimentRunner {
     }
 
     private static void saveToCsv(String protocol, int qos, int clients, int overhead, double intensity, long sent,
-                                  long received, double lossRatio, Double delay, Double size) {
+                                  long received, double lossRatio, Double delay, Double size,
+                                  double targetAggregateRate, double actualSendRate, double actualReceiveRate) {
         try (PrintWriter writer = new PrintWriter(new FileWriter(CSV_FILE, true))) {
-            writer.printf("%s,%d,%d,%d,%.1f,%d,%d,%.6f,%.4f,%.4f%n",
-                    protocol, qos, clients, overhead, intensity, sent, received, lossRatio,
+            writer.printf("%s,%d,%d,%d,%.1f,%.4f,%.4f,%.4f,%d,%d,%.6f,%.4f,%.4f%n",
+                    protocol, qos, clients, overhead, intensity, targetAggregateRate, actualSendRate,
+                    actualReceiveRate, sent, received, lossRatio,
                     delay != null ? delay : 0.0,
                     size != null ? size : 0.0);
         } catch (IOException e) {
             System.err.println("Error writing to CSV: " + e.getMessage());
         }
+    }
+
+    private static void ensureCurrentCsvHeader() {
+        File f = new File(CSV_FILE);
+        if (!f.isFile()) {
+            return;
+        }
+
+        List<String> lines = new ArrayList<>();
+        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                lines.add(line);
+            }
+        } catch (IOException e) {
+            System.err.println("Could not read CSV header: " + e.getMessage());
+            return;
+        }
+
+        if (lines.isEmpty() || CSV_HEADER.equals(lines.getFirst())) {
+            return;
+        }
+
+        List<String> migrated = new ArrayList<>();
+        migrated.add(CSV_HEADER);
+        for (int i = 1; i < lines.size(); i++) {
+            String line = lines.get(i);
+            if (line.isBlank()) {
+                continue;
+            }
+            String[] p = line.split(",", -1);
+            if (p.length >= 13) {
+                migrated.add(line);
+            } else if (p.length >= 10) {
+                try {
+                    migrated.add(migrateLegacyCsvRow(p));
+                } catch (NumberFormatException e) {
+                    System.err.printf("Skipping malformed CSV row %d during migration: %s%n", i + 1, e.getMessage());
+                }
+            }
+        }
+
+        try (PrintWriter writer = new PrintWriter(new FileWriter(CSV_FILE))) {
+            for (String line : migrated) {
+                writer.println(line);
+            }
+        } catch (IOException e) {
+            System.err.println("Could not update CSV header: " + e.getMessage());
+        }
+    }
+
+    private static String migrateLegacyCsvRow(String[] p) {
+        int clients = Integer.parseInt(p[2]);
+        double intensityPerClient = Double.parseDouble(p[4]);
+        long sent = Long.parseLong(p[5]);
+        long received = Long.parseLong(p[6]);
+        int durationSeconds = Math.max(MIN_DURATION_SECONDS, (int) (TOTAL_PACKETS_PER_TEST / intensityPerClient));
+        double targetAggregateRate = intensityPerClient * clients;
+        double actualSendRate = durationSeconds > 0 ? (double) sent / durationSeconds : 0.0;
+        double actualReceiveRate = durationSeconds > 0 ? (double) received / durationSeconds : 0.0;
+        return String.format("%s,%s,%s,%s,%.1f,%.4f,%.4f,%.4f,%s,%s,%s,%s,%s",
+                p[0], p[1], p[2], p[3], intensityPerClient, targetAggregateRate, actualSendRate,
+                actualReceiveRate, p[5], p[6], p[7], p[8], p[9]);
     }
 
     private static void warmup() {
