@@ -4,7 +4,7 @@ import com.manilov.common.service.DelayService;
 import com.manilov.servermqtt.handler.PacketSizeHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import org.eclipse.paho.mqttv5.client.MqttConnectionOptions;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,14 +12,13 @@ import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.dsl.Pollers;
 import org.springframework.integration.endpoint.MessageProducerSupport;
 import org.springframework.integration.handler.LoggingHandler;
-import org.springframework.integration.mqtt.core.DefaultMqttPahoClientFactory;
-import org.springframework.integration.mqtt.core.MqttPahoClientFactory;
-import org.springframework.integration.mqtt.inbound.MqttPahoMessageDrivenChannelAdapter;
-import org.springframework.integration.mqtt.outbound.MqttPahoMessageHandler;
-import org.springframework.integration.mqtt.support.DefaultPahoMessageConverter;
+import org.springframework.integration.mqtt.inbound.Mqttv5PahoMessageDrivenChannelAdapter;
+import org.springframework.integration.mqtt.outbound.Mqttv5PahoMessageHandler;
 import org.springframework.integration.mqtt.support.MqttHeaders;
 import org.springframework.integration.stream.CharacterStreamReadingMessageSource;
 import org.springframework.messaging.MessageHandler;
+
+import java.nio.charset.StandardCharsets;
 
 @Slf4j
 @Configuration
@@ -35,17 +34,15 @@ public class MqttConfiguration {
     @Value("${metrics.topic}")
     private String metricsTopic;
 
-    @Bean
-    public MqttPahoClientFactory mqttClientFactory() {
-        DefaultMqttPahoClientFactory factory = new DefaultMqttPahoClientFactory();
-        MqttConnectOptions options = new MqttConnectOptions();
+    private MqttConnectionOptions mqttConnectionOptions() {
+        MqttConnectionOptions options = new MqttConnectionOptions();
         options.setServerURIs(new String[] { url });
-        options.setCleanSession(true);
+        options.setCleanStart(true);
+        options.setSessionExpiryInterval(0L);
         options.setKeepAliveInterval(30);
         options.setAutomaticReconnect(true);
         options.setSocketFactory(new NoDelaySocketFactory());
-        factory.setConnectionOptions(options);
-        return factory;
+        return options;
     }
 
     @Bean
@@ -59,7 +56,8 @@ public class MqttConfiguration {
 
     @Bean
     public MessageHandler mqttOutbound() {
-        MqttPahoMessageHandler messageHandler = new MqttPahoMessageHandler("metricsPublisher", mqttClientFactory());
+        Mqttv5PahoMessageHandler messageHandler =
+                new Mqttv5PahoMessageHandler(mqttConnectionOptions(), "metricsPublisher");
         messageHandler.setAsync(true);
         messageHandler.setDefaultTopic(metricsTopic);
         return messageHandler;
@@ -81,7 +79,8 @@ public class MqttConfiguration {
     @Bean
     public MessageHandler messageHandler() {
         return message -> {
-            String payloadStr = message.getPayload().toString();
+            byte[] payloadBytes = payloadBytes(message.getPayload());
+            String payloadStr = new String(payloadBytes, StandardCharsets.UTF_8);
             long sentTs;
             try {
                 sentTs = Long.parseLong(payloadStr.split(",")[0]);
@@ -98,7 +97,6 @@ public class MqttConfiguration {
 
             try {
                 String topic = (String) message.getHeaders().get(MqttHeaders.RECEIVED_TOPIC);
-                byte[] payloadBytes = payloadStr.getBytes(java.nio.charset.StandardCharsets.UTF_8);
                 packetSizeHandler.handleMessage(topic != null ? topic : metricsTopic, payloadBytes);
             } catch (Exception e) {
                 log.warn("packetSizeHandler failed: {}", e.getMessage());
@@ -108,12 +106,18 @@ public class MqttConfiguration {
 
     @Bean
     public MessageProducerSupport mqttInbound() {
-        MqttPahoMessageDrivenChannelAdapter adapter = new MqttPahoMessageDrivenChannelAdapter("metricsConsumer",
-                mqttClientFactory(), metricsTopic);
+        Mqttv5PahoMessageDrivenChannelAdapter adapter =
+                new Mqttv5PahoMessageDrivenChannelAdapter(mqttConnectionOptions(), "metricsConsumer", metricsTopic);
         adapter.setCompletionTimeout(5000);
-        adapter.setConverter(new DefaultPahoMessageConverter());
         adapter.setQos(1);
         return adapter;
+    }
+
+    private byte[] payloadBytes(Object payload) {
+        if (payload instanceof byte[] bytes) {
+            return bytes;
+        }
+        return payload.toString().getBytes(StandardCharsets.UTF_8);
     }
 
 }

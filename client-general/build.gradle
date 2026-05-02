@@ -25,7 +25,7 @@ jar {
 dependencies {
     implementation project(':common')
     implementation name: 'mqtt_udp-0.5.2'
-    implementation group: 'org.eclipse.paho', name: 'org.eclipse.paho.client.mqttv3', version: '1.2.5'
+    implementation group: 'org.eclipse.paho', name: 'org.eclipse.paho.mqttv5.client', version: '1.2.5'
     implementation('org.controlsfx:controlsfx:11.1.2')
 
     testImplementation platform('org.junit:junit-bom:5.9.1')

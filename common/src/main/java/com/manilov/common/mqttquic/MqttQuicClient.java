@@ -122,7 +122,7 @@ public final class MqttQuicClient implements AutoCloseable {
         state.bind(session);
 
         MqttMessage connect = MqttMessageBuilders.connect()
-                .protocolVersion(MqttVersion.MQTT_3_1_1)
+                .protocolVersion(MqttVersion.MQTT_5)
                 .clientId(clientId)
                 .cleanSession(true)
                 .keepAlive(60)

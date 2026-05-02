@@ -1,8 +1,11 @@
 package com.manilov;
 
 import io.netty.handler.codec.mqtt.MqttQoS;
-import org.eclipse.paho.client.mqttv3.*;
-import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
+import org.eclipse.paho.mqttv5.client.MqttConnectionOptions;
+import org.eclipse.paho.mqttv5.client.persist.MemoryPersistence;
+import org.eclipse.paho.mqttv5.common.MqttException;
+import org.eclipse.paho.mqttv5.common.MqttMessage;
 import ru.dz.mqtt_udp.Engine;
 import ru.dz.mqtt_udp.PublishPacket;
 
@@ -128,14 +131,15 @@ public class Main {
             String clientId = clientIdPrefix + "_" + java.util.UUID.randomUUID();
             while (Config.isRunning) {
 
-                try (MemoryPersistence persistence = new MemoryPersistence()) {
+                try {
+                    MemoryPersistence persistence = new MemoryPersistence();
                     MqttAsyncClient client = new MqttAsyncClient(Config.mqtt.brokerUrl(), clientId, persistence);
 
-                    MqttConnectOptions connOpts = new MqttConnectOptions();
-                    connOpts.setCleanSession(true);
+                    MqttConnectionOptions connOpts = new MqttConnectionOptions();
+                    connOpts.setCleanStart(true);
+                    connOpts.setSessionExpiryInterval(0L);
                     connOpts.setKeepAliveInterval(10);
                     connOpts.setAutomaticReconnect(false);
-                    connOpts.setMaxInflight(10_000);
                     connOpts.setSocketFactory(new NoDelaySocketFactory());
 
                     System.out.println(clientId + ": Connecting to broker...");
