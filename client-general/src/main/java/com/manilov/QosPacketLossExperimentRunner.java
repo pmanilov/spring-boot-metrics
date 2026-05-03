@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit;
 
 public class QosPacketLossExperimentRunner {
     private static final int[] CLIENT_COUNTS = {1, 2, 5, 10, 15};
-    private static final int[] PAYLOAD_SIZES = {0, 2048, 4096, 8192, 16384};
+    private static final int[] PAYLOAD_SIZES = {0, 2048, 4096, 8192/*, 16384*/};
     private static final int[] QOS_LEVELS = {0, 1, 2};
     private static final String[] PROTOCOLS = {"MQTT", "MQTT-QUIC"};
     private static final double INTENSITY_START = 100;
@@ -28,7 +28,7 @@ public class QosPacketLossExperimentRunner {
 
     // Reduced timing budget for validation runs.
     private static final int TOTAL_PACKETS_PER_TEST = 20000;
-    private static final int MIN_DURATION_SECONDS = 30;
+    private static final int MIN_DURATION_SECONDS = 60;
     private static final int WARMUP_DURATION_SECONDS = 600;
     private static final int DRAIN_SECONDS = 30;
     private static final int POST_RUN_PAUSE_SECONDS = 10;
@@ -58,9 +58,8 @@ public class QosPacketLossExperimentRunner {
             System.out.printf("[RESUME] Found %d completed runs in %s, skipping warmup.%n",
                     completed.size(), CSV_FILE);
         }
-
-        for (int qos : QOS_LEVELS) {
-            for (int clients : CLIENT_COUNTS) {
+        for (int clients : CLIENT_COUNTS) {
+            for (int qos : QOS_LEVELS) {
                 for (int overhead : PAYLOAD_SIZES) {
                     for (double intensity = INTENSITY_START; intensity <= INTENSITY_END; intensity += INTENSITY_STEP) {
                         int duration = Math.max(MIN_DURATION_SECONDS, (int) (TOTAL_PACKETS_PER_TEST / intensity));

@@ -18,7 +18,7 @@ public class Config {
         public boolean enabled = true;
         public String brokerHost = "localhost";
         public int brokerPort = 1883;
-        public String topic = "metricsTopic";
+        public String topic = "metricsTopic/mqtt";
         public String clientIdPrefix = "JavaMqttPublisher";
         public String metricsHost = "localhost";
         public int metricsPort = 8081;
@@ -33,7 +33,7 @@ public class Config {
         public boolean enabled = true;
         // Unicast target for PublishPacket.send(addr). Set to the remote UDP server VPS.
         public String host = "localhost";
-        public String topic = "metricsTopic";
+        public String topic = "metricsTopic/udp";
         public String metricsHost = "localhost";
         public int metricsPort = 8082;
         public volatile int qos = 0;
@@ -44,7 +44,7 @@ public class Config {
         public String host = "localhost";
         public int port = 14567;
         public String alpn = "mqtt";
-        public String topic = "metricsTopic";
+        public String topic = "metricsTopic/quic";
         public String clientIdPrefix = "JavaMqttQuicPublisher";
         public String metricsHost = "localhost";
         public int metricsPort = 8083;

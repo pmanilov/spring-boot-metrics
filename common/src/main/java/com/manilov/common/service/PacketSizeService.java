@@ -2,17 +2,20 @@ package com.manilov.common.service;
 
 import com.manilov.common.domain.PacketSize;
 import com.manilov.common.repository.PacketSizeRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.atomic.LongAdder;
 
 @Service
-@RequiredArgsConstructor
 public class PacketSizeService {
     private final PacketSizeRepository packetSizeRepository;
     private final LongAdder packetSizeSum = new LongAdder();
     private final LongAdder packetSizeCount = new LongAdder();
+
+    public PacketSizeService(ObjectProvider<PacketSizeRepository> packetSizeRepositoryProvider) {
+        this.packetSizeRepository = packetSizeRepositoryProvider.getIfAvailable();
+    }
 
     public Double getAveragePacketSize(String serverId) {
         long count = packetSizeCount.sum();
@@ -25,12 +28,16 @@ public class PacketSizeService {
     public void save(PacketSize packetSize) {
         packetSizeSum.add(packetSize.getPacketSize());
         packetSizeCount.increment();
-        packetSizeRepository.save(packetSize);
+        if (packetSizeRepository != null) {
+            packetSizeRepository.save(packetSize);
+        }
     }
 
     public void deleteAll(String serverId) {
         packetSizeSum.reset();
         packetSizeCount.reset();
-        packetSizeRepository.deleteAll(serverId);
+        if (packetSizeRepository != null) {
+            packetSizeRepository.deleteAll(serverId);
+        }
     }
 }

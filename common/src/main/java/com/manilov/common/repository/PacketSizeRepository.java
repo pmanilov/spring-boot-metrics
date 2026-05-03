@@ -4,6 +4,7 @@ import com.manilov.common.domain.PacketSize;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Repository;
@@ -18,6 +19,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @Repository
+@ConditionalOnProperty(name = "metrics.persistence.enabled", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
 public class PacketSizeRepository {
     private static final String INSERT_SQL =

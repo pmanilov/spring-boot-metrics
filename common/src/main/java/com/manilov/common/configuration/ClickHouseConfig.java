@@ -3,12 +3,15 @@ package com.manilov.common.configuration;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
 
 @Configuration
+@ConditionalOnProperty(name = "metrics.persistence.enabled", havingValue = "true", matchIfMissing = true)
 public class ClickHouseConfig {
     @Value("${clickhouse.jdbc-url:jdbc:clickhouse://clickhouse:8123/metrics}")
     private String jdbcUrl;
@@ -29,5 +32,10 @@ public class ClickHouseConfig {
         config.setKeepaliveTime(30000);
 
         return new HikariDataSource(config);
+    }
+
+    @Bean
+    public JdbcTemplate clickHouseJdbcTemplate(DataSource clickHouseDataSource) {
+        return new JdbcTemplate(clickHouseDataSource);
     }
 }
