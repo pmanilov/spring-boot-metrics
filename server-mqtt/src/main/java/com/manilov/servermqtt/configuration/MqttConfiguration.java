@@ -109,7 +109,7 @@ public class MqttConfiguration {
         Mqttv5PahoMessageDrivenChannelAdapter adapter =
                 new Mqttv5PahoMessageDrivenChannelAdapter(mqttConnectionOptions(), "metricsConsumer", metricsTopic);
         adapter.setCompletionTimeout(5000);
-        adapter.setQos(1);
+        adapter.setQos(2);
         return adapter;
     }
 
