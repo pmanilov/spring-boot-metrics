@@ -6,16 +6,22 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.DoubleAdder;
 import java.util.concurrent.atomic.LongAdder;
 
 @Service
 public class DelayService {
+    private static final int INITIAL_DELAY_SAMPLE_CAPACITY = 16_384;
+
     private final DelayRepository delayRepository;
     private final AtomicLong receivedCount = new AtomicLong(0);
     private final DoubleAdder delaySumMs = new DoubleAdder();
     private final LongAdder delayCount = new LongAdder();
+    private final Object delaySamplesLock = new Object();
+    private double[] delaySamplesMs = new double[INITIAL_DELAY_SAMPLE_CAPACITY];
+    private int delaySampleCount;
 
     public DelayService(ObjectProvider<DelayRepository> delayRepositoryProvider) {
         this.delayRepository = delayRepositoryProvider.getIfAvailable();
@@ -27,6 +33,21 @@ public class DelayService {
             return 0.0;
         }
         return delaySumMs.sum() / count;
+    }
+
+    public Double getDelayPercentile(String serverId, double percentile) {
+        double[] samples;
+        synchronized (delaySamplesLock) {
+            if (delaySampleCount == 0) {
+                return 0.0;
+            }
+            samples = Arrays.copyOf(delaySamplesMs, delaySampleCount);
+        }
+
+        Arrays.sort(samples);
+        int index = (int) Math.ceil(percentile * samples.length) - 1;
+        index = Math.max(0, Math.min(index, samples.length - 1));
+        return samples[index];
     }
 
     public long getReceivedCount() {
@@ -44,6 +65,7 @@ public class DelayService {
         double delay = (double) (nanoTime - clientTime) / 1_000_000;
         delaySumMs.add(delay);
         delayCount.increment();
+        recordDelaySample(delay);
         if (delayRepository != null) {
             delayRepository.save(new Delay(now, serverId, delay));
         }
@@ -52,8 +74,25 @@ public class DelayService {
     public void deleteAll(String serverId) {
         delaySumMs.reset();
         delayCount.reset();
+        clearDelaySamples();
         if (delayRepository != null) {
             delayRepository.deleteAll(serverId);
+        }
+    }
+
+    private void recordDelaySample(double delayMs) {
+        synchronized (delaySamplesLock) {
+            if (delaySampleCount == delaySamplesMs.length) {
+                delaySamplesMs = Arrays.copyOf(delaySamplesMs, delaySamplesMs.length * 2);
+            }
+            delaySamplesMs[delaySampleCount++] = delayMs;
+        }
+    }
+
+    private void clearDelaySamples() {
+        synchronized (delaySamplesLock) {
+            delaySamplesMs = new double[INITIAL_DELAY_SAMPLE_CAPACITY];
+            delaySampleCount = 0;
         }
     }
 }

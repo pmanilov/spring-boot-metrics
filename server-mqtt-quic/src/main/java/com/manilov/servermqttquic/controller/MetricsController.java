@@ -32,6 +32,21 @@ public class MetricsController {
         return ResponseEntity.ok(delayService.getAverageDelay(serverId));
     }
 
+    @GetMapping("/delay/median")
+    public ResponseEntity<Double> getDelayMedian() {
+        return ResponseEntity.ok(delayService.getDelayPercentile(serverId, 0.50));
+    }
+
+    @GetMapping("/delay/p95")
+    public ResponseEntity<Double> getDelayP95() {
+        return ResponseEntity.ok(delayService.getDelayPercentile(serverId, 0.95));
+    }
+
+    @GetMapping("/delay/p99")
+    public ResponseEntity<Double> getDelayP99() {
+        return ResponseEntity.ok(delayService.getDelayPercentile(serverId, 0.99));
+    }
+
     @GetMapping("/packet-size/avg")
     public ResponseEntity<Double> getAveragePacketSize() {
         return ResponseEntity.ok(packetSizeService.getAveragePacketSize(serverId));
