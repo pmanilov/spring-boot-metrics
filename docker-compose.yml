@@ -3,10 +3,10 @@ services:
     build:
       context: .
       dockerfile: mqtt.Dockerfile
-    mem_limit: 1g
-    memswap_limit: 1g
+    mem_limit: 1280m
+    memswap_limit: 1280m
     environment:
-      - JAVA_TOOL_OPTIONS=-Xms128m -Xmx768m -XX:+UseG1GC -XX:MaxGCPauseMillis=100
+      - JAVA_TOOL_OPTIONS=-Xms128m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=100
     ports:
       - "8081:8081"
     networks:
@@ -30,8 +30,8 @@ services:
 
   emqx:
     image: emqx/emqx:5.8.0
-    mem_limit: 1g
-    memswap_limit: 1g
+    mem_limit: 1536m
+    memswap_limit: 1536m
     ports:
       - "1883:1883"
       - "14567:14567/udp"
@@ -41,8 +41,10 @@ services:
       - EMQX_LISTENERS__QUIC__DEFAULT__BIND=0.0.0.0:14567
       - EMQX_LISTENERS__QUIC__DEFAULT__MAX_CONNECTIONS=10000
       - EMQX_ALLOW_ANONYMOUS=true
-      - EMQX_FORCE_SHUTDOWN__MAX_MAILBOX_SIZE=200000
-      - EMQX_FORCE_SHUTDOWN__MAX_HEAP_SIZE=512MB
+      - EMQX_MQTT__MAX_INFLIGHT=1024
+      - EMQX_FORCE_SHUTDOWN__ENABLE=false
+      - EMQX_FORCE_SHUTDOWN__MAX_MAILBOX_SIZE=500000
+      - EMQX_FORCE_SHUTDOWN__MAX_HEAP_SIZE=1024MB
     networks:
       - mqtt
     cap_add:
@@ -52,10 +54,10 @@ services:
     build:
       context: .
       dockerfile: quic.Dockerfile
-    mem_limit: 1280m
-    memswap_limit: 1280m
+    mem_limit: 1536m
+    memswap_limit: 1536m
     environment:
-      - JAVA_TOOL_OPTIONS=-Xms256m -Xmx768m -XX:MaxDirectMemorySize=384m -XX:+UseG1GC -XX:MaxGCPauseMillis=100
+      - JAVA_TOOL_OPTIONS=-Xms256m -Xmx1024m -XX:MaxDirectMemorySize=512m -XX:+UseG1GC -XX:MaxGCPauseMillis=100
     ports:
       - "8083:8083"
     cap_add:
