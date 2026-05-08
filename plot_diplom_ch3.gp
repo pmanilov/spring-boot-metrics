@@ -45,16 +45,27 @@ filt_proto(proto, qos, n, s) = sprintf( \
 
 set output sprintf("%s/fig_3_2_delay_vs_lambda_qos0.png", outdir)
 set title sprintf("Задержка доставки: MQTT/TCP и MQTT/QUIC; QoS 0; N = %d; S = %d байт", BASE_N, BASE_S)
-set xlabel "Суммарная интенсивность Λ, сообщ./с"
+set xlabel "Интенсивность на одного издателя λ, сообщ./с"
 set ylabel "Задержка, мс"
 set format y "%g"
 set xrange [0:*]; set yrange [0:*]
-plot filt_proto("MQTT", 0, BASE_N, BASE_S)      using 6:13 with linespoints lw 2 pt 7  ps 1.0 lc rgb color_mqtt title "MQTT/TCP, медиана", \
-     filt_proto("MQTT", 0, BASE_N, BASE_S)      using 6:14 with linespoints lw 2 pt 9  ps 1.0 lc rgb color_mqtt dt 2 title "MQTT/TCP, q_{0,95}", \
-     filt_proto("MQTT", 0, BASE_N, BASE_S)      using 6:15 with linespoints lw 2 pt 11 ps 1.0 lc rgb color_mqtt dt 3 title "MQTT/TCP, q_{0,99}", \
-     filt_proto("MQTT-QUIC", 0, BASE_N, BASE_S) using 6:13 with linespoints lw 2 pt 5  ps 1.0 lc rgb color_quic title "MQTT/QUIC, медиана", \
-     filt_proto("MQTT-QUIC", 0, BASE_N, BASE_S) using 6:14 with linespoints lw 2 pt 4  ps 1.0 lc rgb color_quic dt 2 title "MQTT/QUIC, q_{0,95}", \
-     filt_proto("MQTT-QUIC", 0, BASE_N, BASE_S) using 6:15 with linespoints lw 2 pt 6  ps 1.0 lc rgb color_quic dt 3 title "MQTT/QUIC, q_{0,99}"
+plot filt_proto("MQTT", 0, BASE_N, BASE_S)      using 5:13 with linespoints lw 2 pt 7  ps 1.0 lc rgb color_mqtt title "MQTT/TCP, медиана", \
+     filt_proto("MQTT", 0, BASE_N, BASE_S)      using 5:14 with linespoints lw 2 pt 9  ps 1.0 lc rgb color_mqtt dt 2 title "MQTT/TCP, q_{0,95}", \
+     filt_proto("MQTT", 0, BASE_N, BASE_S)      using 5:15 with linespoints lw 2 pt 11 ps 1.0 lc rgb color_mqtt dt 3 title "MQTT/TCP, q_{0,99}", \
+     filt_proto("MQTT-QUIC", 0, BASE_N, BASE_S) using 5:13 with linespoints lw 2 pt 5  ps 1.0 lc rgb color_quic title "MQTT/QUIC, медиана", \
+     filt_proto("MQTT-QUIC", 0, BASE_N, BASE_S) using 5:14 with linespoints lw 2 pt 4  ps 1.0 lc rgb color_quic dt 2 title "MQTT/QUIC, q_{0,95}", \
+     filt_proto("MQTT-QUIC", 0, BASE_N, BASE_S) using 5:15 with linespoints lw 2 pt 6  ps 1.0 lc rgb color_quic dt 3 title "MQTT/QUIC, q_{0,99}"
+unset output
+
+# Рис. 3.2-а — средняя задержка от Λ; QoS 0; N, S фикс.
+set output sprintf("%s/fig_3_2_avg_delay_vs_lambda_qos0.png", outdir)
+set title sprintf("Средняя задержка доставки: MQTT/TCP и MQTT/QUIC; QoS 0; N = %d; S = %d байт", BASE_N, BASE_S)
+set xlabel "Интенсивность на одного издателя λ, сообщ./с"
+set ylabel "Средняя задержка, мс"
+set format y "%g"
+set xrange [0:*]; set yrange [0:*]
+plot filt_proto("MQTT", 0, BASE_N, BASE_S)      using 5:12 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_mqtt title "MQTT/TCP", \
+     filt_proto("MQTT-QUIC", 0, BASE_N, BASE_S) using 5:12 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_quic title "MQTT/QUIC"
 unset output
 
 # ------------------------------------------------------------------
@@ -77,39 +88,47 @@ plot filt_n("MQTT", 0, BASE_LAMBDA_PER_CLIENT, BASE_S)      using 3:13 with line
      filt_n("MQTT-QUIC", 0, BASE_LAMBDA_PER_CLIENT, BASE_S) using 3:15 with linespoints lw 2 pt 6 ps 1.2 lc rgb color_quic dt 3 title "MQTT/QUIC, q_{0,99}"
 unset output
 
-# ------------------------------------------------------------------
-# Рис. 3.4 — задержка (медиана, 0,99) от S; QoS 0; N, λ_per_client фикс.
-# ------------------------------------------------------------------
-filt_s(proto, qos, n, lambda_per_client) = sprintf( \
-    "< awk -F, 'NR>1 && $1==\"%s\" && $2==%d && $3==%d && $5==%g' %s | sort -t, -k4,4n", \
-    proto, qos, n, lambda_per_client, csv)
-
-set output sprintf("%s/fig_3_4_delay_vs_payload_qos0.png", outdir)
-set title sprintf("Задержка доставки от размера полезной нагрузки S; QoS 0; N = %d; λ/клиент = %d сообщ./с", \
-    BASE_N, BASE_LAMBDA_PER_CLIENT)
-set xlabel "Размер полезной нагрузки S, байт"
-set ylabel "Задержка, мс"
+# Рис. 3.3-а — средняя задержка от N; QoS 0; λ_per_client, S фикс.
+set output sprintf("%s/fig_3_3_avg_delay_vs_clients_qos0.png", outdir)
+set title sprintf("Средняя задержка доставки от N; QoS 0; λ/клиент = %d сообщ./с; S = %d байт", \
+    BASE_LAMBDA_PER_CLIENT, BASE_S)
+set xlabel "Число издателей N"
+set ylabel "Средняя задержка, мс"
 set format y "%g"
 set xrange [0:*]; set yrange [0:*]
-plot filt_s("MQTT", 0, BASE_N, BASE_LAMBDA_PER_CLIENT)      using 4:13 with linespoints lw 2 pt 7 ps 1.2 lc rgb color_mqtt title "MQTT/TCP, медиана", \
-     filt_s("MQTT", 0, BASE_N, BASE_LAMBDA_PER_CLIENT)      using 4:15 with linespoints lw 2 pt 11 ps 1.2 lc rgb color_mqtt dt 3 title "MQTT/TCP, q_{0,99}", \
-     filt_s("MQTT-QUIC", 0, BASE_N, BASE_LAMBDA_PER_CLIENT) using 4:13 with linespoints lw 2 pt 5 ps 1.2 lc rgb color_quic title "MQTT/QUIC, медиана", \
-     filt_s("MQTT-QUIC", 0, BASE_N, BASE_LAMBDA_PER_CLIENT) using 4:15 with linespoints lw 2 pt 6 ps 1.2 lc rgb color_quic dt 3 title "MQTT/QUIC, q_{0,99}"
+plot filt_n("MQTT", 0, BASE_LAMBDA_PER_CLIENT, BASE_S)      using 3:12 with linespoints lw 2 pt 7 ps 1.2 lc rgb color_mqtt title "MQTT/TCP", \
+     filt_n("MQTT-QUIC", 0, BASE_LAMBDA_PER_CLIENT, BASE_S) using 3:12 with linespoints lw 2 pt 5 ps 1.2 lc rgb color_quic title "MQTT/QUIC"
 unset output
 
+# Графики vs S убраны: основные зависимости в дипломе строятся от интенсивности на одного издателя λ.
+# Влияние S отражено в составе сводных пограничных случаев (см. plot_packet_loss_qos_all.gp).
+
 # ------------------------------------------------------------------
-# Рис. 3.5 — медиана задержки QoS 0 vs QoS 1 от Λ; N, S фикс.
+# Рис. 3.5 — медиана задержки QoS 0 vs QoS 1 от λ; N, S фикс.
 # ------------------------------------------------------------------
 set output sprintf("%s/fig_3_5_median_qos0_qos1.png", outdir)
 set title sprintf("Медиана задержки доставки при QoS 0 и QoS 1; N = %d; S = %d байт", BASE_N, BASE_S)
-set xlabel "Суммарная интенсивность Λ, сообщ./с"
+set xlabel "Интенсивность на одного издателя λ, сообщ./с"
 set ylabel "Медиана задержки, мс"
 set format y "%g"
 set xrange [0:*]; set yrange [0:*]
-plot filt_proto("MQTT", 0, BASE_N, BASE_S)      using 6:13 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_mqtt title "MQTT/TCP, QoS 0", \
-     filt_proto("MQTT", 1, BASE_N, BASE_S)      using 6:13 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_mqtt dt 2 title "MQTT/TCP, QoS 1", \
-     filt_proto("MQTT-QUIC", 0, BASE_N, BASE_S) using 6:13 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_quic title "MQTT/QUIC, QoS 0", \
-     filt_proto("MQTT-QUIC", 1, BASE_N, BASE_S) using 6:13 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_quic dt 2 title "MQTT/QUIC, QoS 1"
+plot filt_proto("MQTT", 0, BASE_N, BASE_S)      using 5:13 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_mqtt title "MQTT/TCP, QoS 0", \
+     filt_proto("MQTT", 1, BASE_N, BASE_S)      using 5:13 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_mqtt dt 2 title "MQTT/TCP, QoS 1", \
+     filt_proto("MQTT-QUIC", 0, BASE_N, BASE_S) using 5:13 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_quic title "MQTT/QUIC, QoS 0", \
+     filt_proto("MQTT-QUIC", 1, BASE_N, BASE_S) using 5:13 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_quic dt 2 title "MQTT/QUIC, QoS 1"
+unset output
+
+# Рис. 3.5-а — средняя задержка QoS 0 vs QoS 1 от Λ; N, S фикс.
+set output sprintf("%s/fig_3_5_avg_qos0_qos1.png", outdir)
+set title sprintf("Средняя задержка доставки при QoS 0 и QoS 1; N = %d; S = %d байт", BASE_N, BASE_S)
+set xlabel "Интенсивность на одного издателя λ, сообщ./с"
+set ylabel "Средняя задержка, мс"
+set format y "%g"
+set xrange [0:*]; set yrange [0:*]
+plot filt_proto("MQTT", 0, BASE_N, BASE_S)      using 5:12 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_mqtt title "MQTT/TCP, QoS 0", \
+     filt_proto("MQTT", 1, BASE_N, BASE_S)      using 5:12 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_mqtt dt 2 title "MQTT/TCP, QoS 1", \
+     filt_proto("MQTT-QUIC", 0, BASE_N, BASE_S) using 5:12 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_quic title "MQTT/QUIC, QoS 0", \
+     filt_proto("MQTT-QUIC", 1, BASE_N, BASE_S) using 5:12 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_quic dt 2 title "MQTT/QUIC, QoS 1"
 unset output
 
 # ------------------------------------------------------------------
@@ -126,36 +145,51 @@ plot filt_n("MQTT", 1, BASE_LAMBDA_PER_CLIENT, BASE_S)      using 3:14 with line
      filt_n("MQTT-QUIC", 1, BASE_LAMBDA_PER_CLIENT, BASE_S) using 3:14 with linespoints lw 2 pt 5 ps 1.2 lc rgb color_quic title "MQTT/QUIC"
 unset output
 
-# ------------------------------------------------------------------
-# Рис. 3.7 — q_{0,95} от S; QoS 1; N, λ_per_client фикс.
-# ------------------------------------------------------------------
-set output sprintf("%s/fig_3_7_p95_vs_payload_qos1.png", outdir)
-set title sprintf("Квантиль 0,95 задержки от S; QoS 1; N = %d; λ/клиент = %d сообщ./с", \
-    BASE_N, BASE_LAMBDA_PER_CLIENT)
-set xlabel "Размер полезной нагрузки S, байт"
-set ylabel "Задержка q_{0,95}, мс"
+# Рис. 3.6-а — средняя задержка от N; QoS 1; λ_per_client, S фикс.
+set output sprintf("%s/fig_3_6_avg_vs_clients_qos1.png", outdir)
+set title sprintf("Средняя задержка от N; QoS 1; λ/клиент = %d сообщ./с; S = %d байт", \
+    BASE_LAMBDA_PER_CLIENT, BASE_S)
+set xlabel "Число издателей N"
+set ylabel "Средняя задержка, мс"
 set format y "%g"
 set xrange [0:*]; set yrange [0:*]
-plot filt_s("MQTT", 1, BASE_N, BASE_LAMBDA_PER_CLIENT)      using 4:14 with linespoints lw 2 pt 7 ps 1.2 lc rgb color_mqtt title "MQTT/TCP", \
-     filt_s("MQTT-QUIC", 1, BASE_N, BASE_LAMBDA_PER_CLIENT) using 4:14 with linespoints lw 2 pt 5 ps 1.2 lc rgb color_quic title "MQTT/QUIC"
+plot filt_n("MQTT", 1, BASE_LAMBDA_PER_CLIENT, BASE_S)      using 3:12 with linespoints lw 2 pt 7 ps 1.2 lc rgb color_mqtt title "MQTT/TCP", \
+     filt_n("MQTT-QUIC", 1, BASE_LAMBDA_PER_CLIENT, BASE_S) using 3:12 with linespoints lw 2 pt 5 ps 1.2 lc rgb color_quic title "MQTT/QUIC"
 unset output
 
 # ------------------------------------------------------------------
-# Рис. 3.8 — медиана QoS 0/1/2 от Λ; N, S фикс.
+# Рис. 3.8 — медиана QoS 0/1/2 от λ; N, S фикс.
 # ------------------------------------------------------------------
 set output sprintf("%s/fig_3_8_median_qos_compare.png", outdir)
 set title sprintf("Медиана задержки при QoS 0, 1, 2; N = %d; S = %d байт", BASE_N, BASE_S)
-set xlabel "Суммарная интенсивность Λ, сообщ./с"
+set xlabel "Интенсивность на одного издателя λ, сообщ./с"
 set ylabel "Медиана задержки, мс"
 set format y "%g"
 set xrange [0:*]; set yrange [0:*]
 set key top left maxrows 3
-plot filt_proto("MQTT", 0, BASE_N, BASE_S)      using 6:13 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_qos0 title "MQTT/TCP, QoS 0", \
-     filt_proto("MQTT", 1, BASE_N, BASE_S)      using 6:13 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_qos1 title "MQTT/TCP, QoS 1", \
-     filt_proto("MQTT", 2, BASE_N, BASE_S)      using 6:13 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_qos2 title "MQTT/TCP, QoS 2", \
-     filt_proto("MQTT-QUIC", 0, BASE_N, BASE_S) using 6:13 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_qos0 dt 2 title "MQTT/QUIC, QoS 0", \
-     filt_proto("MQTT-QUIC", 1, BASE_N, BASE_S) using 6:13 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_qos1 dt 2 title "MQTT/QUIC, QoS 1", \
-     filt_proto("MQTT-QUIC", 2, BASE_N, BASE_S) using 6:13 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_qos2 dt 2 title "MQTT/QUIC, QoS 2"
+plot filt_proto("MQTT", 0, BASE_N, BASE_S)      using 5:13 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_qos0 title "MQTT/TCP, QoS 0", \
+     filt_proto("MQTT", 1, BASE_N, BASE_S)      using 5:13 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_qos1 title "MQTT/TCP, QoS 1", \
+     filt_proto("MQTT", 2, BASE_N, BASE_S)      using 5:13 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_qos2 title "MQTT/TCP, QoS 2", \
+     filt_proto("MQTT-QUIC", 0, BASE_N, BASE_S) using 5:13 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_qos0 dt 2 title "MQTT/QUIC, QoS 0", \
+     filt_proto("MQTT-QUIC", 1, BASE_N, BASE_S) using 5:13 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_qos1 dt 2 title "MQTT/QUIC, QoS 1", \
+     filt_proto("MQTT-QUIC", 2, BASE_N, BASE_S) using 5:13 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_qos2 dt 2 title "MQTT/QUIC, QoS 2"
+set key top left maxrows auto
+unset output
+
+# Рис. 3.8-а — средняя задержка QoS 0/1/2 от Λ; N, S фикс.
+set output sprintf("%s/fig_3_8_avg_qos_compare.png", outdir)
+set title sprintf("Средняя задержка при QoS 0, 1, 2; N = %d; S = %d байт", BASE_N, BASE_S)
+set xlabel "Интенсивность на одного издателя λ, сообщ./с"
+set ylabel "Средняя задержка, мс"
+set format y "%g"
+set xrange [0:*]; set yrange [0:*]
+set key top left maxrows 3
+plot filt_proto("MQTT", 0, BASE_N, BASE_S)      using 5:12 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_qos0 title "MQTT/TCP, QoS 0", \
+     filt_proto("MQTT", 1, BASE_N, BASE_S)      using 5:12 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_qos1 title "MQTT/TCP, QoS 1", \
+     filt_proto("MQTT", 2, BASE_N, BASE_S)      using 5:12 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_qos2 title "MQTT/TCP, QoS 2", \
+     filt_proto("MQTT-QUIC", 0, BASE_N, BASE_S) using 5:12 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_qos0 dt 2 title "MQTT/QUIC, QoS 0", \
+     filt_proto("MQTT-QUIC", 1, BASE_N, BASE_S) using 5:12 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_qos1 dt 2 title "MQTT/QUIC, QoS 1", \
+     filt_proto("MQTT-QUIC", 2, BASE_N, BASE_S) using 5:12 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_qos2 dt 2 title "MQTT/QUIC, QoS 2"
 set key top left maxrows auto
 unset output
 
@@ -164,12 +198,23 @@ unset output
 # ------------------------------------------------------------------
 set output sprintf("%s/fig_3_9_p99_vs_lambda_qos2.png", outdir)
 set title sprintf("Квантиль 0,99 задержки при QoS 2; N = %d; S = %d байт", BASE_N, BASE_S)
-set xlabel "Суммарная интенсивность Λ, сообщ./с"
+set xlabel "Интенсивность на одного издателя λ, сообщ./с"
 set ylabel "Задержка q_{0,99}, мс"
 set format y "%g"
 set xrange [0:*]; set yrange [0:*]
-plot filt_proto("MQTT", 2, BASE_N, BASE_S)      using 6:15 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_mqtt title "MQTT/TCP", \
-     filt_proto("MQTT-QUIC", 2, BASE_N, BASE_S) using 6:15 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_quic title "MQTT/QUIC"
+plot filt_proto("MQTT", 2, BASE_N, BASE_S)      using 5:15 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_mqtt title "MQTT/TCP", \
+     filt_proto("MQTT-QUIC", 2, BASE_N, BASE_S) using 5:15 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_quic title "MQTT/QUIC"
+unset output
+
+# Рис. 3.9-а — средняя задержка от Λ; QoS 2; N, S фикс.
+set output sprintf("%s/fig_3_9_avg_vs_lambda_qos2.png", outdir)
+set title sprintf("Средняя задержка при QoS 2; N = %d; S = %d байт", BASE_N, BASE_S)
+set xlabel "Интенсивность на одного издателя λ, сообщ./с"
+set ylabel "Средняя задержка, мс"
+set format y "%g"
+set xrange [0:*]; set yrange [0:*]
+plot filt_proto("MQTT", 2, BASE_N, BASE_S)      using 5:12 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_mqtt title "MQTT/TCP", \
+     filt_proto("MQTT-QUIC", 2, BASE_N, BASE_S) using 5:12 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_quic title "MQTT/QUIC"
 unset output
 
 # ------------------------------------------------------------------
@@ -177,18 +222,18 @@ unset output
 # ------------------------------------------------------------------
 set output sprintf("%s/fig_3_10_output_vs_lambda.png", outdir)
 set title sprintf("Выходная интенсивность от заданной Λ; QoS 0, 1, 2; N = %d; S = %d байт", BASE_N, BASE_S)
-set xlabel "Суммарная интенсивность Λ, сообщ./с"
+set xlabel "Интенсивность на одного издателя λ, сообщ./с"
 set ylabel "Λ_{out}, сообщ./с"
 set format y "%g"
 set xrange [0:*]; set yrange [0:*]
 set key top left maxrows 3
-plot filt_proto("MQTT", 0, BASE_N, BASE_S)      using 6:8 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_qos0 title "MQTT/TCP, QoS 0", \
-     filt_proto("MQTT", 1, BASE_N, BASE_S)      using 6:8 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_qos1 title "MQTT/TCP, QoS 1", \
-     filt_proto("MQTT", 2, BASE_N, BASE_S)      using 6:8 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_qos2 title "MQTT/TCP, QoS 2", \
-     filt_proto("MQTT-QUIC", 0, BASE_N, BASE_S) using 6:8 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_qos0 dt 2 title "MQTT/QUIC, QoS 0", \
-     filt_proto("MQTT-QUIC", 1, BASE_N, BASE_S) using 6:8 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_qos1 dt 2 title "MQTT/QUIC, QoS 1", \
-     filt_proto("MQTT-QUIC", 2, BASE_N, BASE_S) using 6:8 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_qos2 dt 2 title "MQTT/QUIC, QoS 2", \
-     x with lines lw 1 dt 4 lc rgb "#888888" title "Λ_{out} = Λ"
+plot filt_proto("MQTT", 0, BASE_N, BASE_S)      using 5:8 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_qos0 title "MQTT/TCP, QoS 0", \
+     filt_proto("MQTT", 1, BASE_N, BASE_S)      using 5:8 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_qos1 title "MQTT/TCP, QoS 1", \
+     filt_proto("MQTT", 2, BASE_N, BASE_S)      using 5:8 with linespoints lw 2 pt 7 ps 1.0 lc rgb color_qos2 title "MQTT/TCP, QoS 2", \
+     filt_proto("MQTT-QUIC", 0, BASE_N, BASE_S) using 5:8 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_qos0 dt 2 title "MQTT/QUIC, QoS 0", \
+     filt_proto("MQTT-QUIC", 1, BASE_N, BASE_S) using 5:8 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_qos1 dt 2 title "MQTT/QUIC, QoS 1", \
+     filt_proto("MQTT-QUIC", 2, BASE_N, BASE_S) using 5:8 with linespoints lw 2 pt 5 ps 1.0 lc rgb color_qos2 dt 2 title "MQTT/QUIC, QoS 2", \
+     BASE_N*x with lines lw 1 dt 4 lc rgb "#888888" title "Λ_{out} = λ × N"
 set key top left maxrows auto
 unset output
 
@@ -198,12 +243,12 @@ unset output
 # ------------------------------------------------------------------
 set output sprintf("%s/fig_3_11_delivery_vs_lambda_qos0.png", outdir)
 set title sprintf("Доля доставленных сообщений DR; QoS 0; N = %d; S = %d байт", BASE_N, BASE_S)
-set xlabel "Суммарная интенсивность Λ, сообщ./с"
+set xlabel "Интенсивность на одного издателя λ, сообщ./с"
 set ylabel "Доля доставленных сообщений DR"
 set format y "%.2f"
 set xrange [0:*]; set yrange [0:1.05]
-plot filt_proto("MQTT", 0, BASE_N, BASE_S)      using 6:(1-$11) with linespoints lw 2 pt 7 ps 1.0 lc rgb color_mqtt title "MQTT/TCP", \
-     filt_proto("MQTT-QUIC", 0, BASE_N, BASE_S) using 6:(1-$11) with linespoints lw 2 pt 5 ps 1.0 lc rgb color_quic title "MQTT/QUIC"
+plot filt_proto("MQTT", 0, BASE_N, BASE_S)      using 5:(1-$11) with linespoints lw 2 pt 7 ps 1.0 lc rgb color_mqtt title "MQTT/TCP", \
+     filt_proto("MQTT-QUIC", 0, BASE_N, BASE_S) using 5:(1-$11) with linespoints lw 2 pt 5 ps 1.0 lc rgb color_quic title "MQTT/QUIC"
 unset output
 
 print sprintf("Saved per-chapter figures into %s/", outdir)
