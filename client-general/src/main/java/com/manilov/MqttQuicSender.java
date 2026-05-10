@@ -74,6 +74,10 @@ public final class MqttQuicSender {
             delegate.publish(topic, payload, qos);
         }
 
+        public CompletableFuture<Void> publishAsync(String topic, byte[] payload, MqttQoS qos) {
+            return delegate.publishAsync(topic, payload, qos);
+        }
+
         public void subscribe(String topic, MqttQoS qos) {
             delegate.subscribe(topic, qos);
         }

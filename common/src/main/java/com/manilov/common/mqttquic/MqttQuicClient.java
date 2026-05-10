@@ -202,25 +202,46 @@ public final class MqttQuicClient implements AutoCloseable {
         }
 
         public void publish(String topic, byte[] payload, MqttQoS qos) {
+            try {
+                publishAsync(topic, payload, qos).get();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while waiting for MQTT publish completion", e);
+            } catch (ExecutionException e) {
+                throw unwrap("Failed while waiting for MQTT publish completion", e);
+            }
+        }
+
+        public CompletableFuture<Void> publishAsync(String topic, byte[] payload) {
+            return publishAsync(topic, payload, MqttQoS.AT_MOST_ONCE);
+        }
+
+        public CompletableFuture<Void> publishAsync(String topic, byte[] payload, MqttQoS qos) {
             Objects.requireNonNull(topic, "topic");
             Objects.requireNonNull(payload, "payload");
             Objects.requireNonNull(qos, "qos");
 
             if (qos == MqttQoS.AT_MOST_ONCE) {
-                writeAndFlush(buildPublish(topic, payload, qos, 0, false));
-                return;
+                return writeAndFlushAsync(buildPublish(topic, payload, qos, 0, false));
             }
 
             int packetId = nextPacketId();
             InFlight inFlight = new InFlight(packetId, topic, payload.clone(), qos);
             state.inFlights.put(packetId, inFlight);
-            writeAndFlush(buildPublish(topic, inFlight.payload, qos, packetId, false));
-
+            inFlight.completion.whenComplete((ignored, error) -> state.inFlights.remove(packetId, inFlight));
             try {
-                awaitCompletionWithRetry(inFlight);
-            } finally {
-                state.inFlights.remove(packetId);
+                writeAndFlushAsync(buildPublish(topic, inFlight.payload, qos, packetId, false))
+                        .whenComplete((ignored, error) -> {
+                            if (error != null) {
+                                completeInFlightExceptionally(inFlight, error);
+                                return;
+                            }
+                            scheduleAckTimeout(inFlight, 1);
+                        });
+            } catch (RuntimeException e) {
+                completeInFlightExceptionally(inFlight, e);
             }
+            return inFlight.completion;
         }
 
         public void subscribe(String topic, MqttQoS qos) {
@@ -276,33 +297,34 @@ public final class MqttQuicClient implements AutoCloseable {
             throw new IllegalStateException("No MQTT packet identifiers available");
         }
 
-        private void awaitCompletionWithRetry(InFlight inFlight) {
-            for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-                try {
-                    inFlight.completion.get(ACK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        private void scheduleAckTimeout(InFlight inFlight, int attempt) {
+            stream.eventLoop().schedule(() -> {
+                if (inFlight.completion.isDone() || !state.inFlights.containsKey(inFlight.packetId)) {
                     return;
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException("Interrupted while waiting for MQTT ACK", e);
-                } catch (ExecutionException e) {
-                    throw unwrap("Failed while waiting for MQTT ACK", e);
-                } catch (TimeoutException e) {
-                    if (attempt == MAX_RETRIES) {
-                        throw new IllegalStateException(
-                                "Timed out waiting for MQTT ACK for packet " + inFlight.packetId, e);
-                    }
-                    retransmit(inFlight);
                 }
-            }
+                if (attempt >= MAX_RETRIES) {
+                    completeInFlightExceptionally(inFlight,
+                            new IllegalStateException("Timed out waiting for MQTT ACK for packet "
+                                    + inFlight.packetId));
+                    return;
+                }
+                retransmitAsync(inFlight).whenComplete((ignored, error) -> {
+                    if (error != null) {
+                        completeInFlightExceptionally(inFlight, error);
+                        return;
+                    }
+                    scheduleAckTimeout(inFlight, attempt + 1);
+                });
+            }, ACK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         }
 
-        private void retransmit(InFlight inFlight) {
+        private CompletableFuture<Void> retransmitAsync(InFlight inFlight) {
             InFlightState currentState = inFlight.state.get();
             if (currentState == InFlightState.WAIT_PUBCOMP) {
-                writeAndFlush(buildPubRel(inFlight.packetId, true));
-            } else {
-                writeAndFlush(buildPublish(inFlight.topic, inFlight.payload, inFlight.qos, inFlight.packetId, true));
+                return writeAndFlushAsync(buildPubRel(inFlight.packetId, true));
             }
+            return writeAndFlushAsync(buildPublish(inFlight.topic, inFlight.payload, inFlight.qos,
+                    inFlight.packetId, true));
         }
 
         private void writeAndFlush(MqttMessage message) {
@@ -324,6 +346,45 @@ public final class MqttQuicClient implements AutoCloseable {
             if (!future.isSuccess()) {
                 Throwable cause = future.cause();
                 throw new IllegalStateException("Failed to write MQTT packet", cause);
+            }
+        }
+
+        private CompletableFuture<Void> writeAndFlushAsync(MqttMessage message) {
+            CompletableFuture<Void> completion = new CompletableFuture<>();
+            ChannelFuture future;
+            try {
+                future = stream.writeAndFlush(message);
+            } catch (RuntimeException e) {
+                fail(e);
+                completion.completeExceptionally(e);
+                return completion;
+            }
+            stream.eventLoop().schedule(() -> {
+                if (completion.isDone()) {
+                    return;
+                }
+                IllegalStateException timeout =
+                        new IllegalStateException("Timed out while writing MQTT packet");
+                fail(timeout);
+                completion.completeExceptionally(timeout);
+            }, WRITE_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            future.addListener(writeFuture -> {
+                if (writeFuture.isSuccess()) {
+                    completion.complete(null);
+                    return;
+                }
+                Throwable cause = writeFuture.cause() != null
+                        ? writeFuture.cause()
+                        : new IllegalStateException("Failed to write MQTT packet");
+                fail(cause);
+                completion.completeExceptionally(cause);
+            });
+            return completion;
+        }
+
+        private void completeInFlightExceptionally(InFlight inFlight, Throwable cause) {
+            if (state.inFlights.remove(inFlight.packetId, inFlight)) {
+                inFlight.completion.completeExceptionally(cause);
             }
         }
 

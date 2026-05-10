@@ -1,6 +1,8 @@
 package com.manilov;
 
 import io.netty.handler.codec.mqtt.MqttQoS;
+import org.eclipse.paho.mqttv5.client.IMqttToken;
+import org.eclipse.paho.mqttv5.client.MqttActionListener;
 import org.eclipse.paho.mqttv5.client.MqttAsyncClient;
 import org.eclipse.paho.mqttv5.client.MqttConnectionOptions;
 import org.eclipse.paho.mqttv5.client.persist.MemoryPersistence;
@@ -13,9 +15,12 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Instant;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class Main {
 
@@ -56,9 +61,65 @@ public class Main {
         return (long) (intervalSeconds * 1_000_000_000L);
     }
 
+    private static boolean qosRequiresAck(int qos) {
+        return qos > 0;
+    }
+
+    private static int maxInFlight(int configured) {
+        return Math.max(1, configured);
+    }
+
+    private static boolean acquirePermitWhileRunning(Semaphore inFlight,
+                                                     AtomicReference<Throwable> publishFailure)
+            throws InterruptedException {
+        while (Config.isRunning && publishFailure.get() == null) {
+            if (inFlight.tryAcquire(100, TimeUnit.MILLISECONDS)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean drainInFlight(Semaphore inFlight, int maxInFlight, int timeoutSeconds)
+            throws InterruptedException {
+        int acquired = 0;
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(Math.max(0, timeoutSeconds));
+        try {
+            while (acquired < maxInFlight) {
+                long remaining = deadline - System.nanoTime();
+                if (remaining <= 0 || !inFlight.tryAcquire(remaining, TimeUnit.NANOSECONDS)) {
+                    return false;
+                }
+                acquired++;
+            }
+            return true;
+        } finally {
+            if (acquired > 0) {
+                inFlight.release(acquired);
+            }
+        }
+    }
+
+    private static void recordPublishFailure(AtomicReference<Throwable> publishFailure, Throwable error) {
+        publishFailure.compareAndSet(null,
+                error != null ? error : new IllegalStateException("Unknown publish failure"));
+    }
+
+    private static void logPublishFailure(String protocol, AtomicReference<Throwable> publishFailure) {
+        Throwable failure = publishFailure.get();
+        if (failure != null) {
+            System.err.println(protocol + " publish failed: " + failure.getMessage());
+        }
+    }
+
     static Runnable getTaskMqttQuic(String clientId) {
         return () -> {
             String overhead = Config.bytesOverhead > 0 ? "," + "0".repeat(Config.bytesOverhead - 1) : "";
+            int qosValue = Config.mqttQuic.qos;
+            MqttQoS qos = MqttQoS.valueOf(qosValue);
+            int maxInFlight = maxInFlight(Config.mqttQuic.maxInFlight);
+            Semaphore inFlight = new Semaphore(maxInFlight);
+            AtomicReference<Throwable> publishFailure = new AtomicReference<>();
             MqttQuicSender.Session session;
             try {
                 session = MqttQuicSender.get().openSession(clientId);
@@ -68,6 +129,9 @@ public class Main {
             }
             try {
                 while (!Thread.interrupted() && Config.isRunning) {
+                    if (publishFailure.get() != null) {
+                        break;
+                    }
                     try {
                         TimeUnit.NANOSECONDS.sleep(getNextPoissonDelayNanos(Config.intensity));
                     } catch (InterruptedException e) {
@@ -77,16 +141,56 @@ public class Main {
                     Instant now = Instant.now();
                     long currentTime = now.toEpochMilli() / 1_000 * 1_000_000_000 + now.getNano();
                     String payload = currentTime + overhead;
+                    boolean permitAcquired = false;
                     try {
-                        session.publish(Config.mqttQuic.topic, payload.getBytes(),
-                                MqttQoS.valueOf(Config.mqttQuic.qos));
-                        sentCountMqttQuic.incrementAndGet();
+                        byte[] payloadBytes = payload.getBytes();
+                        if (qosRequiresAck(qosValue)) {
+                            if (!acquirePermitWhileRunning(inFlight, publishFailure)) {
+                                break;
+                            }
+                            permitAcquired = true;
+                            if (!Config.isRunning) {
+                                inFlight.release();
+                                permitAcquired = false;
+                                break;
+                            }
+                            CompletableFuture<Void> publishFuture =
+                                    session.publishAsync(Config.mqttQuic.topic, payloadBytes, qos);
+                            permitAcquired = false;
+                            publishFuture.whenComplete((ignored, error) -> {
+                                try {
+                                    if (error == null) {
+                                        sentCountMqttQuic.incrementAndGet();
+                                    } else {
+                                        recordPublishFailure(publishFailure, error);
+                                    }
+                                } finally {
+                                    inFlight.release();
+                                }
+                            });
+                        } else {
+                            session.publish(Config.mqttQuic.topic, payloadBytes, qos);
+                            sentCountMqttQuic.incrementAndGet();
+                        }
                     } catch (Exception e) {
+                        if (permitAcquired) {
+                            inFlight.release();
+                        }
                         System.err.println("MQTT-QUIC publish error: " + e.getMessage());
                         break;
                     }
                 }
             } finally {
+                if (qosRequiresAck(qosValue)) {
+                    try {
+                        if (!drainInFlight(inFlight, maxInFlight, Config.mqttQuic.publishDrainTimeoutSeconds)) {
+                            System.err.println("MQTT-QUIC publish drain timed out");
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    logPublishFailure("MQTT-QUIC", publishFailure);
+                }
                 try {
                     session.close();
                 } catch (Exception ignored) {
@@ -148,21 +252,78 @@ public class Main {
                     System.out.println(clientId + ": Connected!");
 
                     String overhead = Config.bytesOverhead > 0 ? "," + "0".repeat(Config.bytesOverhead - 1) : "";
+                    int qosValue = Config.mqtt.qos;
+                    int maxInFlight = maxInFlight(Config.mqtt.maxInFlight);
+                    Semaphore inFlight = new Semaphore(maxInFlight);
+                    AtomicReference<Throwable> publishFailure = new AtomicReference<>();
 
                     try {
                         while (client.isConnected() && Config.isRunning) {
+                            if (publishFailure.get() != null) {
+                                break;
+                            }
                             TimeUnit.NANOSECONDS.sleep(getNextPoissonDelayNanos(Config.intensity));
                             Instant now = Instant.now();
                             long currentTime = now.getEpochSecond() * 1_000_000_000L + now.getNano();
                             String message = currentTime + overhead;
 
                             MqttMessage mqttMessage = new MqttMessage(message.getBytes());
-                            mqttMessage.setQos(Config.mqtt.qos);
+                            mqttMessage.setQos(qosValue);
 
-                            client.publish(Config.mqtt.topic, mqttMessage).waitForCompletion();
-                            sentCountMqtt.incrementAndGet();
+                            boolean permitAcquired = false;
+                            try {
+                                if (qosRequiresAck(qosValue)) {
+                                    if (!acquirePermitWhileRunning(inFlight, publishFailure)) {
+                                        break;
+                                    }
+                                    permitAcquired = true;
+                                    if (!Config.isRunning) {
+                                        inFlight.release();
+                                        permitAcquired = false;
+                                        break;
+                                    }
+                                    client.publish(Config.mqtt.topic, mqttMessage, null, new MqttActionListener() {
+                                        @Override
+                                        public void onSuccess(IMqttToken asyncActionToken) {
+                                            try {
+                                                sentCountMqtt.incrementAndGet();
+                                            } finally {
+                                                inFlight.release();
+                                            }
+                                        }
+
+                                        @Override
+                                        public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+                                            try {
+                                                recordPublishFailure(publishFailure, exception);
+                                            } finally {
+                                                inFlight.release();
+                                            }
+                                        }
+                                    });
+                                    permitAcquired = false;
+                                } else {
+                                    client.publish(Config.mqtt.topic, mqttMessage).waitForCompletion();
+                                    sentCountMqtt.incrementAndGet();
+                                }
+                            } catch (MqttException e) {
+                                if (permitAcquired) {
+                                    inFlight.release();
+                                }
+                                throw e;
+                            }
                         }
                     } finally {
+                        if (qosRequiresAck(qosValue)) {
+                            try {
+                                if (!drainInFlight(inFlight, maxInFlight, Config.mqtt.publishDrainTimeoutSeconds)) {
+                                    System.err.println("MQTT publish drain timed out");
+                                }
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                            }
+                            logPublishFailure("MQTT", publishFailure);
+                        }
                         try {
                             if (client.isConnected()) {
                                 client.disconnect(30_000).waitForCompletion();

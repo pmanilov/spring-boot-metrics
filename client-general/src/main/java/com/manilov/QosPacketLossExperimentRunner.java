@@ -18,8 +18,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 public class QosPacketLossExperimentRunner {
-    private static final int[] CLIENT_COUNTS = {1, 2, 5, 10, 15};
-    private static final int[] PAYLOAD_SIZES = {0, 2048, 4096, 8192/*, 16384*/};
+    private static final int[] CLIENT_COUNTS = {1, 5, 10, 15};
+    private static final int[] PAYLOAD_SIZES = {0, 2048, 4096, 8192};
     private static final int[] QOS_LEVELS = {0, 1, 2};
     private static final String[] PROTOCOLS = {"MQTT", "MQTT-QUIC"};
     private static final double INTENSITY_START = 100;
