@@ -23,7 +23,7 @@ public class Config {
         public String metricsHost = "localhost";
         public int metricsPort = 8081;
         public volatile int qos = 0;
-        public int maxInFlight = 32;
+        public int maxInFlight = 16;
         public int publishDrainTimeoutSeconds = 30;
 
         public String brokerUrl() {
