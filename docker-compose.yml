@@ -31,8 +31,8 @@ services:
 
   emqx:
     image: emqx/emqx:5.8.0
-    mem_limit: 1536m
-    memswap_limit: 1536m
+    mem_limit: 2300m
+    memswap_limit: 2300m
     restart: unless-stopped
     ports:
       - "1883:1883"
@@ -47,8 +47,8 @@ services:
       - EMQX_MQTT__MAX_MQUEUE_LEN=80000
       - EMQX_MQTT__MQUEUE_STORE_QOS0=false
       - EMQX_FORCE_SHUTDOWN__ENABLE=true
-      - EMQX_FORCE_SHUTDOWN__MAX_MAILBOX_SIZE=100000
-      - EMQX_FORCE_SHUTDOWN__MAX_HEAP_SIZE=832MB
+      - EMQX_FORCE_SHUTDOWN__MAX_MAILBOX_SIZE=200000
+      - EMQX_FORCE_SHUTDOWN__MAX_HEAP_SIZE=1536MB
     healthcheck:
       test: ["CMD", "emqx", "ctl", "status"]
       interval: 10s
