@@ -34,6 +34,9 @@ services:
     mem_limit: 2300m
     memswap_limit: 2300m
     restart: unless-stopped
+    sysctls:
+      - net.core.rmem_max=33554432
+      - net.core.wmem_max=33554432
     ports:
       - "1883:1883"
       - "14567:14567/udp"
@@ -42,6 +45,12 @@ services:
       - EMQX_LISTENERS__QUIC__DEFAULT__ENABLED=true
       - EMQX_LISTENERS__QUIC__DEFAULT__BIND=0.0.0.0:14567
       - EMQX_LISTENERS__QUIC__DEFAULT__MAX_CONNECTIONS=10000
+      - EMQX_LISTENERS__QUIC__DEFAULT__ACCEPTORS=16
+      - EMQX_LISTENERS__QUIC__DEFAULT__IDLE_TIMEOUT=300s
+      - EMQX_LISTENERS__QUIC__DEFAULT__KEEP_ALIVE_INTERVAL=120s
+      # QUIC flow control / streams per session — оставлены под значениями из msquic,
+      # которые EMQX 5.8 пробрасывает: см. listeners.quic.default в emqx.conf.
+      # При необходимости поднимать через хот-config или extra env.
       - EMQX_ALLOW_ANONYMOUS=true
       - EMQX_MQTT__MAX_INFLIGHT=1024
       - EMQX_MQTT__MAX_MQUEUE_LEN=80000
@@ -64,11 +73,12 @@ services:
     build:
       context: .
       dockerfile: quic.Dockerfile
-    mem_limit: 1380m
-    memswap_limit: 1380m
+    mem_limit: 2200m
+    memswap_limit: 2200m
     restart: unless-stopped
     environment:
-      - JAVA_TOOL_OPTIONS=-Xms256m -Xmx768m -XX:MaxDirectMemorySize=384m -XX:+UseG1GC -XX:MaxGCPauseMillis=100
+      - JAVA_TOOL_OPTIONS=-Xms256m -Xmx768m -XX:MaxDirectMemorySize=1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=100
+      - MQTTQUIC_STREAM_POOL_SIZE=4
     ports:
       - "8083:8083"
     cap_add:

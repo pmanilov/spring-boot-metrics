@@ -2,8 +2,10 @@ package com.manilov.servermqttquic.controller;
 
 import com.manilov.common.service.DelayService;
 import com.manilov.common.service.PacketSizeService;
+import com.manilov.servermqttquic.configuration.MqttQuicSubscriberConfiguration;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,9 +18,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class MetricsController {
     private final DelayService delayService;
     private final PacketSizeService packetSizeService;
+    private final MqttQuicSubscriberConfiguration subscriber;
 
     @Value("${server.id}")
     private String serverId;
+
+    @GetMapping("/ready")
+    public ResponseEntity<String> ready() {
+        if (subscriber.isSubscribed()) {
+            return ResponseEntity.ok("ready");
+        }
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("not ready");
+    }
 
     @PostMapping("/delete")
     public ResponseEntity<String> delete() {

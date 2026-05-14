@@ -170,6 +170,10 @@ public class QosPacketLossExperimentRunner {
                 threads.add(Thread.ofVirtual().start(Main.getTaskMqttUdp()));
             }
         } else {
+            // QUIC-подписчик мог потерять сессию между прогонами; QoS 0 на стороне
+            // EMQX не буферизуется (MQUEUE_STORE_QOS0=false), так что без явного
+            // ожидания готовности часть стартовых публикаций «съедается».
+            awaitSubscriberReady(metricsHost, metricsPort);
             for (int i = 0; i < Config.countClients; i++) {
                 String clientId = Config.mqttQuic.clientIdPrefix + "_QosLoss_" + qos + "_" + i;
                 threads.add(Thread.ofVirtual().start(Main.getTaskMqttQuic(clientId)));
@@ -267,6 +271,39 @@ public class QosPacketLossExperimentRunner {
             System.err.println("Error fetching server count: " + e.getMessage());
         }
         return 0L;
+    }
+
+    private static void awaitSubscriberReady(String host, int port) {
+        String url = "http://" + host + ":" + port + "/metrics/ready";
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(2))
+                .GET()
+                .build();
+
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        int attempts = 0;
+        while (System.nanoTime() < deadline) {
+            attempts++;
+            try {
+                HttpResponse<Void> response = httpClient.send(request, HttpResponse.BodyHandlers.discarding());
+                if (response.statusCode() == 200) {
+                    if (attempts > 1) {
+                        System.out.printf("[READY] Subscriber ready at %s after %d attempts%n", url, attempts);
+                    }
+                    return;
+                }
+            } catch (Exception ignored) {
+                // эндпоинт может временно не отвечать — продолжаем
+            }
+            try {
+                TimeUnit.MILLISECONDS.sleep(200);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+        System.err.printf("[READY] Subscriber not ready at %s within 30s — proceeding anyway%n", url);
     }
 
     private static Double getMetric(String host, int port, String endpoint) {

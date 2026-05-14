@@ -41,8 +41,19 @@ public class MqttQuicSubscriberConfiguration {
     private String clientId;
 
     private volatile boolean running;
+    private volatile boolean subscribed;
     private volatile MqttQuicClient client;
     private volatile MqttQuicClient.Session session;
+
+    /**
+     * True between successful SUBACK and session close. Используется
+     * /metrics/ready, чтобы раннер мог дождаться готовности подписчика
+     * перед стартом publishers — иначе при QoS 0 и низком λ часть стартовых
+     * сообщений теряется (MQUEUE_STORE_QOS0=false на брокере).
+     */
+    public boolean isSubscribed() {
+        return subscribed;
+    }
     private ExecutorService executor;
     private ExecutorService messageExecutor;
     private ScheduledExecutorService keepAliveExecutor;
@@ -104,6 +115,7 @@ public class MqttQuicSubscriberConfiguration {
                     }
                 });
                 activeSession.subscribe(metricsTopic, MqttQoS.EXACTLY_ONCE);
+                subscribed = true;
                 startKeepAlive(activeSession);
                 log.info("Connected to EMQX MQTT-over-QUIC broker {}:{} and subscribed to '{}'",
                         emqxHost, emqxPort, metricsTopic);
@@ -113,6 +125,7 @@ public class MqttQuicSubscriberConfiguration {
                     log.warn("MQTT-QUIC subscriber loop failed: {}", rootMessage(e));
                 }
             } finally {
+                subscribed = false;
                 stopKeepAlive();
                 closeSession();
                 closeClient();

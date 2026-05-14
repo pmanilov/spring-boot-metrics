@@ -151,6 +151,24 @@ task experimentPacketLossQos1Jar(type: Jar) {
     exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
 }
 
+// Запуск QoS-эксперимента локально (для отладки). Если запускаете на удалённой
+// 1 ГБ VM через nohup — используйте run_qos_experiment.sh в корне репозитория,
+// у него ужатые бюджеты heap/direct.
+task runQosExperiment(type: JavaExec) {
+    group = "Execution"
+    description = "Run QosPacketLossExperimentRunner with tuned QUIC settings"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.manilov.QosPacketLossExperimentRunner'
+    jvmArgs = [
+            '-Xms256m',
+            '-Xmx1g',
+            '-XX:MaxDirectMemorySize=1024m',
+            '-XX:+UseG1GC',
+            '-XX:MaxGCPauseMillis=100',
+            '-Dmqttquic.streamPoolSize=4',
+    ]
+}
+
 runWithJavaFX.dependsOn checkJavaFX
 
 test {

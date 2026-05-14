@@ -62,13 +62,25 @@ public final class MqttQuicClient implements AutoCloseable {
     private static final int MAX_RETRIES = 5;
     private static final int RECEIVED_QOS2_CACHE_LIMIT = 4096;
 
+    // Размер пула QUIC-стримов на одну MQTT-сессию. Управляется через
+    // системное свойство mqttquic.streamPoolSize или env MQTTQUIC_STREAM_POOL_SIZE.
+    // Контрольные сообщения (CONNECT/SUBSCRIBE/PING/DISCONNECT, исходящие ACK)
+    // всегда идут через stream[0]; PUBLISH распределяются по пулу round-robin.
+    private static final int DEFAULT_STREAM_POOL_SIZE = 1;
+
     private final NioEventLoopGroup group;
     private final Channel udpChannel;
     private final QuicSslContext sslContext;
     private final InetSocketAddress remote;
+    private final int streamPoolSize;
 
     public MqttQuicClient(String host, int port, String alpn) throws Exception {
+        this(host, port, alpn, resolveStreamPoolSize());
+    }
+
+    public MqttQuicClient(String host, int port, String alpn, int streamPoolSize) throws Exception {
         this.remote = resolveRemote(host, port);
+        this.streamPoolSize = Math.max(1, streamPoolSize);
         this.sslContext = QuicSslContextBuilder.forClient()
                 .trustManager(InsecureTrustManagerFactory.INSTANCE)
                 .applicationProtocols(alpn)
@@ -80,12 +92,12 @@ public final class MqttQuicClient implements AutoCloseable {
         ChannelHandler codec = new QuicClientCodecBuilder()
                 .sslContext(sslContext)
                 .maxIdleTimeout(60, TimeUnit.SECONDS)
-                .initialMaxData(100_000_000)
-                .initialMaxStreamDataBidirectionalLocal(10_000_000)
-                .initialMaxStreamDataBidirectionalRemote(10_000_000)
-                .initialMaxStreamDataUnidirectional(10_000_000)
-                .initialMaxStreamsBidirectional(100)
-                .initialMaxStreamsUnidirectional(100)
+                .initialMaxData(1L << 30)                              // 1 GiB connection-level
+                .initialMaxStreamDataBidirectionalLocal(64 * 1024 * 1024)
+                .initialMaxStreamDataBidirectionalRemote(64 * 1024 * 1024)
+                .initialMaxStreamDataUnidirectional(64 * 1024 * 1024)
+                .initialMaxStreamsBidirectional(1024)
+                .initialMaxStreamsUnidirectional(1024)
                 .build();
 
         this.udpChannel = new Bootstrap()
@@ -95,6 +107,19 @@ public final class MqttQuicClient implements AutoCloseable {
                 .bind(0)
                 .sync()
                 .channel();
+    }
+
+    private static int resolveStreamPoolSize() {
+        String raw = System.getProperty("mqttquic.streamPoolSize",
+                System.getenv("MQTTQUIC_STREAM_POOL_SIZE"));
+        if (raw == null || raw.isBlank()) {
+            return DEFAULT_STREAM_POOL_SIZE;
+        }
+        try {
+            return Math.max(1, Integer.parseInt(raw.trim()));
+        } catch (NumberFormatException e) {
+            return DEFAULT_STREAM_POOL_SIZE;
+        }
     }
 
     public Session openSession(String clientId) throws Exception {
@@ -107,18 +132,10 @@ public final class MqttQuicClient implements AutoCloseable {
         waitForPeerStreamAllowance(quicChannel, QuicStreamType.BIDIRECTIONAL, STREAM_OPEN_TIMEOUT);
 
         SessionState state = new SessionState();
-        QuicStreamChannel stream = quicChannel.createStream(
-                QuicStreamType.BIDIRECTIONAL,
-                new ChannelInitializer<QuicStreamChannel>() {
-                    @Override
-                    protected void initChannel(QuicStreamChannel ch) {
-                        ch.pipeline().addLast(MqttEncoder.INSTANCE);
-                        ch.pipeline().addLast(new MqttDecoder(MAX_MQTT_PACKET_SIZE));
-                        ch.pipeline().addLast(new SessionHandler(state));
-                    }
-                }).get();
+        QuicStreamChannel controlStream = openBidiStream(quicChannel, state);
 
-        Session session = new Session(quicChannel, stream, state);
+        QuicStreamChannel[] initialStreams = new QuicStreamChannel[] { controlStream };
+        Session session = new Session(quicChannel, initialStreams, state);
         state.bind(session);
 
         MqttMessage connect = MqttMessageBuilders.connect()
@@ -139,7 +156,45 @@ public final class MqttQuicClient implements AutoCloseable {
             throw unwrap("Failed to establish MQTT-over-QUIC session", e);
         }
 
+        // CONNACK получен — пробуем расширить пул. Брокер мог анонсировать
+        // ограниченное число стримов, поэтому при ошибке просто остаёмся
+        // с тем, что уже открыто.
+        if (streamPoolSize > 1) {
+            QuicStreamChannel[] expanded = new QuicStreamChannel[streamPoolSize];
+            expanded[0] = controlStream;
+            int opened = 1;
+            for (int i = 1; i < streamPoolSize; i++) {
+                try {
+                    waitForPeerStreamAllowance(quicChannel, QuicStreamType.BIDIRECTIONAL, STREAM_OPEN_TIMEOUT);
+                    expanded[i] = openBidiStream(quicChannel, state);
+                    opened++;
+                } catch (Exception e) {
+                    break;
+                }
+            }
+            if (opened > 1) {
+                QuicStreamChannel[] finalStreams = opened == streamPoolSize
+                        ? expanded
+                        : java.util.Arrays.copyOf(expanded, opened);
+                session.setStreams(finalStreams);
+            }
+        }
+
         return session;
+    }
+
+    private static QuicStreamChannel openBidiStream(QuicChannel quicChannel, SessionState state)
+            throws InterruptedException, ExecutionException {
+        return quicChannel.createStream(
+                QuicStreamType.BIDIRECTIONAL,
+                new ChannelInitializer<QuicStreamChannel>() {
+                    @Override
+                    protected void initChannel(QuicStreamChannel ch) {
+                        ch.pipeline().addLast(MqttEncoder.INSTANCE);
+                        ch.pipeline().addLast(new MqttDecoder(MAX_MQTT_PACKET_SIZE));
+                        ch.pipeline().addLast(new SessionHandler(state));
+                    }
+                }).get();
     }
 
     private static InetSocketAddress resolveRemote(String host, int port) throws UnknownHostException {
@@ -179,14 +234,32 @@ public final class MqttQuicClient implements AutoCloseable {
 
     public static final class Session implements AutoCloseable {
         private final QuicChannel quicChannel;
-        private final QuicStreamChannel stream;
+        private volatile QuicStreamChannel[] streams;
+        private final AtomicInteger nextStreamIdx = new AtomicInteger(0);
         private final SessionState state;
         private final AtomicInteger nextPacketId = new AtomicInteger(1);
 
-        private Session(QuicChannel quicChannel, QuicStreamChannel stream, SessionState state) {
+        private Session(QuicChannel quicChannel, QuicStreamChannel[] streams, SessionState state) {
             this.quicChannel = quicChannel;
-            this.stream = stream;
+            this.streams = streams;
             this.state = state;
+        }
+
+        private void setStreams(QuicStreamChannel[] streams) {
+            this.streams = streams;
+        }
+
+        private QuicStreamChannel controlStream() {
+            return streams[0];
+        }
+
+        private QuicStreamChannel pickPublishStream() {
+            QuicStreamChannel[] snapshot = streams;
+            if (snapshot.length == 1) {
+                return snapshot[0];
+            }
+            int idx = (nextStreamIdx.getAndIncrement() & 0x7FFFFFFF) % snapshot.length;
+            return snapshot[idx];
         }
 
         public void setMessageListener(MessageListener listener) {
@@ -221,16 +294,18 @@ public final class MqttQuicClient implements AutoCloseable {
             Objects.requireNonNull(payload, "payload");
             Objects.requireNonNull(qos, "qos");
 
+            QuicStreamChannel pubStream = pickPublishStream();
+
             if (qos == MqttQoS.AT_MOST_ONCE) {
-                return writeAndFlushAsync(buildPublish(topic, payload, qos, 0, false));
+                return writeAndFlushAsync(pubStream, buildPublish(topic, payload, qos, 0, false));
             }
 
             int packetId = nextPacketId();
-            InFlight inFlight = new InFlight(packetId, topic, payload.clone(), qos);
+            InFlight inFlight = new InFlight(packetId, topic, payload.clone(), qos, pubStream);
             state.inFlights.put(packetId, inFlight);
             inFlight.completion.whenComplete((ignored, error) -> state.inFlights.remove(packetId, inFlight));
             try {
-                writeAndFlushAsync(buildPublish(topic, inFlight.payload, qos, packetId, false))
+                writeAndFlushAsync(pubStream, buildPublish(topic, inFlight.payload, qos, packetId, false))
                         .whenComplete((ignored, error) -> {
                             if (error != null) {
                                 completeInFlightExceptionally(inFlight, error);
@@ -298,7 +373,7 @@ public final class MqttQuicClient implements AutoCloseable {
         }
 
         private void scheduleAckTimeout(InFlight inFlight, int attempt) {
-            stream.eventLoop().schedule(() -> {
+            inFlight.stream.eventLoop().schedule(() -> {
                 if (inFlight.completion.isDone() || !state.inFlights.containsKey(inFlight.packetId)) {
                     return;
                 }
@@ -321,13 +396,18 @@ public final class MqttQuicClient implements AutoCloseable {
         private CompletableFuture<Void> retransmitAsync(InFlight inFlight) {
             InFlightState currentState = inFlight.state.get();
             if (currentState == InFlightState.WAIT_PUBCOMP) {
-                return writeAndFlushAsync(buildPubRel(inFlight.packetId, true));
+                return writeAndFlushAsync(inFlight.stream, buildPubRel(inFlight.packetId, true));
             }
-            return writeAndFlushAsync(buildPublish(inFlight.topic, inFlight.payload, inFlight.qos,
-                    inFlight.packetId, true));
+            return writeAndFlushAsync(inFlight.stream,
+                    buildPublish(inFlight.topic, inFlight.payload, inFlight.qos,
+                            inFlight.packetId, true));
         }
 
         private void writeAndFlush(MqttMessage message) {
+            writeAndFlush(controlStream(), message);
+        }
+
+        private void writeAndFlush(QuicStreamChannel stream, MqttMessage message) {
             ChannelFuture future = stream.writeAndFlush(message);
             if (stream.eventLoop().inEventLoop()) {
                 future.addListener(writeFuture -> {
@@ -349,7 +429,7 @@ public final class MqttQuicClient implements AutoCloseable {
             }
         }
 
-        private CompletableFuture<Void> writeAndFlushAsync(MqttMessage message) {
+        private CompletableFuture<Void> writeAndFlushAsync(QuicStreamChannel stream, MqttMessage message) {
             CompletableFuture<Void> completion = new CompletableFuture<>();
             ChannelFuture future;
             try {
@@ -401,7 +481,7 @@ public final class MqttQuicClient implements AutoCloseable {
                 return;
             }
             if (inFlight.state.compareAndSet(InFlightState.WAIT_PUBREC, InFlightState.WAIT_PUBCOMP)) {
-                writeAndFlush(buildPubRel(packetId, false));
+                writeAndFlush(inFlight.stream, buildPubRel(packetId, false));
             }
         }
 
@@ -570,14 +650,16 @@ public final class MqttQuicClient implements AutoCloseable {
         private final String topic;
         private final byte[] payload;
         private final MqttQoS qos;
+        private final QuicStreamChannel stream;
         private final AtomicReference<InFlightState> state;
         private final CompletableFuture<Void> completion = new CompletableFuture<>();
 
-        private InFlight(int packetId, String topic, byte[] payload, MqttQoS qos) {
+        private InFlight(int packetId, String topic, byte[] payload, MqttQoS qos, QuicStreamChannel stream) {
             this.packetId = packetId;
             this.topic = topic;
             this.payload = payload;
             this.qos = qos;
+            this.stream = stream;
             this.state = new AtomicReference<>(
                     qos == MqttQoS.EXACTLY_ONCE ? InFlightState.WAIT_PUBREC : InFlightState.WAIT_PUBACK);
         }
