@@ -156,7 +156,7 @@ task experimentPacketLossQos1Jar(type: Jar) {
 // у него ужатые бюджеты heap/direct.
 task runQosExperiment(type: JavaExec) {
     group = "Execution"
-    description = "Run QosPacketLossExperimentRunner with tuned QUIC settings"
+    description = "Run QosPacketLossExperimentRunner"
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'com.manilov.QosPacketLossExperimentRunner'
     jvmArgs = [
@@ -165,7 +165,6 @@ task runQosExperiment(type: JavaExec) {
             '-XX:MaxDirectMemorySize=1024m',
             '-XX:+UseG1GC',
             '-XX:MaxGCPauseMillis=100',
-            '-Dmqttquic.streamPoolSize=4',
     ]
 }
 

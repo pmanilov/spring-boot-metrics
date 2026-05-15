@@ -52,8 +52,6 @@ public class PacketSizeExperimentRunner {
                 }
             }
         }
-
-        MqttQuicSender.close();
     }
 
     private static void runProtocolTest(String protocol, int overhead, int clients, double intensity,

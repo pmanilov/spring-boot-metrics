@@ -9,25 +9,18 @@
 # leaks или OOM:Direct), уменьшайте c/S/λ или поднимайте RAM на хосте —
 # на 1 ГБ для c=15 × S=8192 × λ=1000 принципиально не хватит буфера.
 #
-# Многопоточность QUIC:
-#   STREAM_POOL=4 — пул из 4 QUIC-стримов на сессию (см.
-#   MqttQuicClient.resolveStreamPoolSize). Поставьте 1, чтобы откатиться
-#   к одиночному стриму (старое поведение).
-#
 # Использование (на удалённом хосте):
 #   nohup ./run_qos_experiment.sh > qos_experiment.log 2>&1 &
 #   tail -f qos_experiment.log
 #
 # Опциональные переменные окружения:
 #   JAR             путь к fat-jar (default: experiment-packet-loss-qos1-1.2.jar)
-#   STREAM_POOL     размер пула QUIC-стримов (default: 4)
 #   DIRECT_MEM      MaxDirectMemorySize (default: 384m)
 #   HEAP_MAX        -Xmx (default: 192m)
 
 set -e
 
 JAR="${JAR:-experiment-packet-loss-qos1-1.2.jar}"
-STREAM_POOL="${STREAM_POOL:-4}"
 DIRECT_MEM="${DIRECT_MEM:-384m}"
 HEAP_MAX="${HEAP_MAX:-192m}"
 
@@ -43,5 +36,4 @@ exec java \
     "-XX:MaxDirectMemorySize=${DIRECT_MEM}" \
     -XX:+UseG1GC \
     -XX:MaxGCPauseMillis=100 \
-    "-Dmqttquic.streamPoolSize=${STREAM_POOL}" \
     -jar "$JAR"

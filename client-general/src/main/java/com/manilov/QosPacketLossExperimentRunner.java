@@ -75,8 +75,6 @@ public class QosPacketLossExperimentRunner {
                 }
             }
         }
-
-        MqttQuicSender.close();
     }
 
     private static String runKey(int qos, String protocol, int clients, int overhead, double intensity) {

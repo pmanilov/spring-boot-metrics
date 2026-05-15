@@ -120,9 +120,12 @@ public class Main {
             int maxInFlight = maxInFlight(Config.mqttQuic.maxInFlight);
             Semaphore inFlight = new Semaphore(maxInFlight);
             AtomicReference<Throwable> publishFailure = new AtomicReference<>();
+            MqttQuicSender sender;
             MqttQuicSender.Session session;
             try {
-                session = MqttQuicSender.get().openSession(clientId);
+                sender = new MqttQuicSender(
+                        Config.mqttQuic.host, Config.mqttQuic.port, Config.mqttQuic.alpn);
+                session = sender.openSession(clientId);
             } catch (Exception e) {
                 System.err.println(clientId + " failed to open MQTT-QUIC session: " + e.getMessage());
                 return;
@@ -193,6 +196,10 @@ public class Main {
                 }
                 try {
                     session.close();
+                } catch (Exception ignored) {
+                }
+                try {
+                    sender.close();
                 } catch (Exception ignored) {
                 }
             }

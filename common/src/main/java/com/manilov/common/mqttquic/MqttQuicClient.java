@@ -62,25 +62,13 @@ public final class MqttQuicClient implements AutoCloseable {
     private static final int MAX_RETRIES = 5;
     private static final int RECEIVED_QOS2_CACHE_LIMIT = 4096;
 
-    // Размер пула QUIC-стримов на одну MQTT-сессию. Управляется через
-    // системное свойство mqttquic.streamPoolSize или env MQTTQUIC_STREAM_POOL_SIZE.
-    // Контрольные сообщения (CONNECT/SUBSCRIBE/PING/DISCONNECT, исходящие ACK)
-    // всегда идут через stream[0]; PUBLISH распределяются по пулу round-robin.
-    private static final int DEFAULT_STREAM_POOL_SIZE = 1;
-
     private final NioEventLoopGroup group;
     private final Channel udpChannel;
     private final QuicSslContext sslContext;
     private final InetSocketAddress remote;
-    private final int streamPoolSize;
 
     public MqttQuicClient(String host, int port, String alpn) throws Exception {
-        this(host, port, alpn, resolveStreamPoolSize());
-    }
-
-    public MqttQuicClient(String host, int port, String alpn, int streamPoolSize) throws Exception {
         this.remote = resolveRemote(host, port);
-        this.streamPoolSize = Math.max(1, streamPoolSize);
         this.sslContext = QuicSslContextBuilder.forClient()
                 .trustManager(InsecureTrustManagerFactory.INSTANCE)
                 .applicationProtocols(alpn)
@@ -109,19 +97,6 @@ public final class MqttQuicClient implements AutoCloseable {
                 .channel();
     }
 
-    private static int resolveStreamPoolSize() {
-        String raw = System.getProperty("mqttquic.streamPoolSize",
-                System.getenv("MQTTQUIC_STREAM_POOL_SIZE"));
-        if (raw == null || raw.isBlank()) {
-            return DEFAULT_STREAM_POOL_SIZE;
-        }
-        try {
-            return Math.max(1, Integer.parseInt(raw.trim()));
-        } catch (NumberFormatException e) {
-            return DEFAULT_STREAM_POOL_SIZE;
-        }
-    }
-
     public Session openSession(String clientId) throws Exception {
         QuicChannel quicChannel = QuicChannel.newBootstrap(udpChannel)
                 .streamHandler(new ChannelInboundHandlerAdapter())
@@ -132,10 +107,9 @@ public final class MqttQuicClient implements AutoCloseable {
         waitForPeerStreamAllowance(quicChannel, QuicStreamType.BIDIRECTIONAL, STREAM_OPEN_TIMEOUT);
 
         SessionState state = new SessionState();
-        QuicStreamChannel controlStream = openBidiStream(quicChannel, state);
+        QuicStreamChannel stream = openBidiStream(quicChannel, state);
 
-        QuicStreamChannel[] initialStreams = new QuicStreamChannel[] { controlStream };
-        Session session = new Session(quicChannel, initialStreams, state);
+        Session session = new Session(quicChannel, stream, state);
         state.bind(session);
 
         MqttMessage connect = MqttMessageBuilders.connect()
@@ -154,30 +128,6 @@ public final class MqttQuicClient implements AutoCloseable {
         } catch (ExecutionException e) {
             session.close();
             throw unwrap("Failed to establish MQTT-over-QUIC session", e);
-        }
-
-        // CONNACK получен — пробуем расширить пул. Брокер мог анонсировать
-        // ограниченное число стримов, поэтому при ошибке просто остаёмся
-        // с тем, что уже открыто.
-        if (streamPoolSize > 1) {
-            QuicStreamChannel[] expanded = new QuicStreamChannel[streamPoolSize];
-            expanded[0] = controlStream;
-            int opened = 1;
-            for (int i = 1; i < streamPoolSize; i++) {
-                try {
-                    waitForPeerStreamAllowance(quicChannel, QuicStreamType.BIDIRECTIONAL, STREAM_OPEN_TIMEOUT);
-                    expanded[i] = openBidiStream(quicChannel, state);
-                    opened++;
-                } catch (Exception e) {
-                    break;
-                }
-            }
-            if (opened > 1) {
-                QuicStreamChannel[] finalStreams = opened == streamPoolSize
-                        ? expanded
-                        : java.util.Arrays.copyOf(expanded, opened);
-                session.setStreams(finalStreams);
-            }
         }
 
         return session;
@@ -234,32 +184,14 @@ public final class MqttQuicClient implements AutoCloseable {
 
     public static final class Session implements AutoCloseable {
         private final QuicChannel quicChannel;
-        private volatile QuicStreamChannel[] streams;
-        private final AtomicInteger nextStreamIdx = new AtomicInteger(0);
+        private final QuicStreamChannel stream;
         private final SessionState state;
         private final AtomicInteger nextPacketId = new AtomicInteger(1);
 
-        private Session(QuicChannel quicChannel, QuicStreamChannel[] streams, SessionState state) {
+        private Session(QuicChannel quicChannel, QuicStreamChannel stream, SessionState state) {
             this.quicChannel = quicChannel;
-            this.streams = streams;
+            this.stream = stream;
             this.state = state;
-        }
-
-        private void setStreams(QuicStreamChannel[] streams) {
-            this.streams = streams;
-        }
-
-        private QuicStreamChannel controlStream() {
-            return streams[0];
-        }
-
-        private QuicStreamChannel pickPublishStream() {
-            QuicStreamChannel[] snapshot = streams;
-            if (snapshot.length == 1) {
-                return snapshot[0];
-            }
-            int idx = (nextStreamIdx.getAndIncrement() & 0x7FFFFFFF) % snapshot.length;
-            return snapshot[idx];
         }
 
         public void setMessageListener(MessageListener listener) {
@@ -294,18 +226,16 @@ public final class MqttQuicClient implements AutoCloseable {
             Objects.requireNonNull(payload, "payload");
             Objects.requireNonNull(qos, "qos");
 
-            QuicStreamChannel pubStream = pickPublishStream();
-
             if (qos == MqttQoS.AT_MOST_ONCE) {
-                return writeAndFlushAsync(pubStream, buildPublish(topic, payload, qos, 0, false));
+                return writeAndFlushAsync(buildPublish(topic, payload, qos, 0, false));
             }
 
             int packetId = nextPacketId();
-            InFlight inFlight = new InFlight(packetId, topic, payload.clone(), qos, pubStream);
+            InFlight inFlight = new InFlight(packetId, topic, payload.clone(), qos);
             state.inFlights.put(packetId, inFlight);
             inFlight.completion.whenComplete((ignored, error) -> state.inFlights.remove(packetId, inFlight));
             try {
-                writeAndFlushAsync(pubStream, buildPublish(topic, inFlight.payload, qos, packetId, false))
+                writeAndFlushAsync(buildPublish(topic, inFlight.payload, qos, packetId, false))
                         .whenComplete((ignored, error) -> {
                             if (error != null) {
                                 completeInFlightExceptionally(inFlight, error);
@@ -373,7 +303,7 @@ public final class MqttQuicClient implements AutoCloseable {
         }
 
         private void scheduleAckTimeout(InFlight inFlight, int attempt) {
-            inFlight.stream.eventLoop().schedule(() -> {
+            stream.eventLoop().schedule(() -> {
                 if (inFlight.completion.isDone() || !state.inFlights.containsKey(inFlight.packetId)) {
                     return;
                 }
@@ -396,27 +326,19 @@ public final class MqttQuicClient implements AutoCloseable {
         private CompletableFuture<Void> retransmitAsync(InFlight inFlight) {
             InFlightState currentState = inFlight.state.get();
             if (currentState == InFlightState.WAIT_PUBCOMP) {
-                return writeAndFlushAsync(inFlight.stream, buildPubRel(inFlight.packetId, true));
+                return writeAndFlushAsync(buildPubRel(inFlight.packetId, true));
             }
-            return writeAndFlushAsync(inFlight.stream,
-                    buildPublish(inFlight.topic, inFlight.payload, inFlight.qos,
-                            inFlight.packetId, true));
+            return writeAndFlushAsync(buildPublish(inFlight.topic, inFlight.payload, inFlight.qos,
+                    inFlight.packetId, true));
         }
 
         private void writeAndFlush(MqttMessage message) {
-            writeAndFlush(controlStream(), message);
-        }
-
-        private void writeAndFlush(QuicStreamChannel stream, MqttMessage message) {
             ChannelFuture future = stream.writeAndFlush(message);
             if (stream.eventLoop().inEventLoop()) {
-                future.addListener(writeFuture -> {
-                    if (!writeFuture.isSuccess()) {
-                        fail(writeFuture.cause() != null
-                                ? writeFuture.cause()
-                                : new IllegalStateException("Failed to write MQTT packet"));
-                    }
-                });
+                // Fire-and-forget путь для исходящих ACK из SessionHandler.
+                // Промах одной записи не должен валить всю сессию: если
+                // транспорт действительно умер, прилетит channelInactive
+                // и SessionState.failAll(...) очистит in-flight целиком.
                 return;
             }
             boolean completed = future.awaitUninterruptibly(WRITE_TIMEOUT.toMillis());
@@ -429,26 +351,30 @@ public final class MqttQuicClient implements AutoCloseable {
             }
         }
 
-        private CompletableFuture<Void> writeAndFlushAsync(QuicStreamChannel stream, MqttMessage message) {
+        private CompletableFuture<Void> writeAndFlushAsync(MqttMessage message) {
             CompletableFuture<Void> completion = new CompletableFuture<>();
             ChannelFuture future;
             try {
                 future = stream.writeAndFlush(message);
             } catch (RuntimeException e) {
-                fail(e);
+                // Локальный сбой записи: фейлим только конкретный future.
+                // Полную деградацию сессии транслирует SessionHandler через
+                // channelInactive / exceptionCaught.
                 completion.completeExceptionally(e);
                 return completion;
             }
-            stream.eventLoop().schedule(() -> {
+            // Сторожевой таймаут отменяется по завершении writeFuture — иначе
+            // под нагрузкой в очередь event loop'a набивается до WRITE_TIMEOUT * λ
+            // ScheduledFuture, удерживающих ссылки на MqttMessage/ByteBuf.
+            io.netty.util.concurrent.ScheduledFuture<?> timeoutFuture = stream.eventLoop().schedule(() -> {
                 if (completion.isDone()) {
                     return;
                 }
-                IllegalStateException timeout =
-                        new IllegalStateException("Timed out while writing MQTT packet");
-                fail(timeout);
-                completion.completeExceptionally(timeout);
+                completion.completeExceptionally(
+                        new IllegalStateException("Timed out while writing MQTT packet"));
             }, WRITE_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             future.addListener(writeFuture -> {
+                timeoutFuture.cancel(false);
                 if (writeFuture.isSuccess()) {
                     completion.complete(null);
                     return;
@@ -456,7 +382,6 @@ public final class MqttQuicClient implements AutoCloseable {
                 Throwable cause = writeFuture.cause() != null
                         ? writeFuture.cause()
                         : new IllegalStateException("Failed to write MQTT packet");
-                fail(cause);
                 completion.completeExceptionally(cause);
             });
             return completion;
@@ -481,7 +406,7 @@ public final class MqttQuicClient implements AutoCloseable {
                 return;
             }
             if (inFlight.state.compareAndSet(InFlightState.WAIT_PUBREC, InFlightState.WAIT_PUBCOMP)) {
-                writeAndFlush(inFlight.stream, buildPubRel(packetId, false));
+                writeAndFlush(buildPubRel(packetId, false));
             }
         }
 
@@ -650,16 +575,14 @@ public final class MqttQuicClient implements AutoCloseable {
         private final String topic;
         private final byte[] payload;
         private final MqttQoS qos;
-        private final QuicStreamChannel stream;
         private final AtomicReference<InFlightState> state;
         private final CompletableFuture<Void> completion = new CompletableFuture<>();
 
-        private InFlight(int packetId, String topic, byte[] payload, MqttQoS qos, QuicStreamChannel stream) {
+        private InFlight(int packetId, String topic, byte[] payload, MqttQoS qos) {
             this.packetId = packetId;
             this.topic = topic;
             this.payload = payload;
             this.qos = qos;
-            this.stream = stream;
             this.state = new AtomicReference<>(
                     qos == MqttQoS.EXACTLY_ONCE ? InFlightState.WAIT_PUBREC : InFlightState.WAIT_PUBACK);
         }

@@ -78,7 +78,6 @@ services:
     restart: unless-stopped
     environment:
       - JAVA_TOOL_OPTIONS=-Xms256m -Xmx768m -XX:MaxDirectMemorySize=1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=100
-      - MQTTQUIC_STREAM_POOL_SIZE=4
     ports:
       - "8083:8083"
     cap_add:
