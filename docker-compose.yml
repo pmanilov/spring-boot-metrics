@@ -48,15 +48,19 @@ services:
       - EMQX_LISTENERS__QUIC__DEFAULT__ACCEPTORS=16
       - EMQX_LISTENERS__QUIC__DEFAULT__IDLE_TIMEOUT=300s
       - EMQX_LISTENERS__QUIC__DEFAULT__KEEP_ALIVE_INTERVAL=120s
-      # QUIC flow control / streams per session — оставлены под значениями из msquic,
-      # которые EMQX 5.8 пробрасывает: см. listeners.quic.default в emqx.conf.
-      # При необходимости поднимать через хот-config или extra env.
+      # QUIC flow control: поднимаем дефолтные msquic-окна, чтобы single subscriber
+      # успевал принимать burst от 10× publishers при крупных payload без сваливания
+      # в conn_congestion. Имена сверены с listeners.quic.default в EMQX 5.8.
+      - EMQX_LISTENERS__QUIC__DEFAULT__STREAM_RECV_WINDOW_DEFAULT=1048576
+      - EMQX_LISTENERS__QUIC__DEFAULT__CONN_RECV_WINDOW_DEFAULT=8388608
+      - EMQX_LISTENERS__QUIC__DEFAULT__PEER_BIDI_STREAM_COUNT=64
+      - EMQX_LISTENERS__QUIC__DEFAULT__PEER_UNIDI_STREAM_COUNT=8
       - EMQX_ALLOW_ANONYMOUS=true
       - EMQX_MQTT__MAX_INFLIGHT=1024
       - EMQX_MQTT__MAX_MQUEUE_LEN=80000
       - EMQX_MQTT__MQUEUE_STORE_QOS0=false
       - EMQX_FORCE_SHUTDOWN__ENABLE=true
-      - EMQX_FORCE_SHUTDOWN__MAX_MAILBOX_SIZE=200000
+      - EMQX_FORCE_SHUTDOWN__MAX_MAILBOX_SIZE=250000
       - EMQX_FORCE_SHUTDOWN__MAX_HEAP_SIZE=1536MB
     healthcheck:
       test: ["CMD", "emqx", "ctl", "status"]

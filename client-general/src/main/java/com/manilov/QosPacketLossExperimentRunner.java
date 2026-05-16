@@ -21,7 +21,7 @@ public class QosPacketLossExperimentRunner {
     private static final int[] CLIENT_COUNTS = {1, 5, 10, 15};
     private static final int[] PAYLOAD_SIZES = {0, 2048, 4096, 8192};
     private static final int[] QOS_LEVELS = {0, 1, 2};
-    private static final String[] PROTOCOLS = {"MQTT", "MQTT-QUIC"};
+    private static final String[] PROTOCOLS = {/*"MQTT", */"MQTT-QUIC"};
     private static final double INTENSITY_START = 100;
     private static final double INTENSITY_END = 1000;
     private static final double INTENSITY_STEP = 100;
@@ -29,9 +29,9 @@ public class QosPacketLossExperimentRunner {
     // Reduced timing budget for validation runs.
     private static final int TOTAL_PACKETS_PER_TEST = 20000;
     private static final int MIN_DURATION_SECONDS = 60;
-    private static final int WARMUP_DURATION_SECONDS = 600;
-    private static final int DRAIN_SECONDS = 30;
-    private static final int POST_RUN_PAUSE_SECONDS = 10;
+    private static final int WARMUP_DURATION_SECONDS = 60;
+    private static final int DRAIN_SECONDS = 60;
+    private static final int POST_RUN_PAUSE_SECONDS = 30;
     private static final String CSV_FILE = "experiment_results_packet_loss_qos_all.csv";
     private static final String CSV_HEADER = "Protocol,QoS,Clients,Overhead(bytes),IntensityPerClient(req/sec),"
             + "TargetAggregateRate(req/sec),ActualSendRate(req/sec),ActualReceiveRate(req/sec),Sent,Received,"
@@ -66,8 +66,8 @@ public class QosPacketLossExperimentRunner {
                         Config.intensity = intensity;
                         Config.countClients = clients;
 
-                        runIfNeeded(completed, qos, "MQTT", clients, overhead, intensity, duration,
-                                Config.mqtt.metricsHost, Config.mqtt.metricsPort);
+                        // runIfNeeded(completed, qos, "MQTT", clients, overhead, intensity, duration,
+                        //         Config.mqtt.metricsHost, Config.mqtt.metricsPort);
 
                         runIfNeeded(completed, qos, "MQTT-QUIC", clients, overhead, intensity, duration,
                                 Config.mqttQuic.metricsHost, Config.mqttQuic.metricsPort);
