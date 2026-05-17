@@ -21,7 +21,7 @@ public class QosPacketLossExperimentRunner {
     private static final int[] CLIENT_COUNTS = {1, 5, 10, 15};
     private static final int[] PAYLOAD_SIZES = {0, 2048, 4096, 8192};
     private static final int[] QOS_LEVELS = {0, 1, 2};
-    private static final String[] PROTOCOLS = {/*"MQTT", */"MQTT-QUIC"};
+    private static final String[] PROTOCOLS = {"MQTT", "MQTT-QUIC"};
     private static final double INTENSITY_START = 100;
     private static final double INTENSITY_END = 1000;
     private static final double INTENSITY_STEP = 100;
@@ -66,8 +66,8 @@ public class QosPacketLossExperimentRunner {
                         Config.intensity = intensity;
                         Config.countClients = clients;
 
-                        // runIfNeeded(completed, qos, "MQTT", clients, overhead, intensity, duration,
-                        //         Config.mqtt.metricsHost, Config.mqtt.metricsPort);
+                         runIfNeeded(completed, qos, "MQTT", clients, overhead, intensity, duration,
+                                 Config.mqtt.metricsHost, Config.mqtt.metricsPort);
 
                         runIfNeeded(completed, qos, "MQTT-QUIC", clients, overhead, intensity, duration,
                                 Config.mqttQuic.metricsHost, Config.mqttQuic.metricsPort);
