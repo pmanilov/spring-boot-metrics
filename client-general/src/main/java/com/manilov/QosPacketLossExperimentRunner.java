@@ -171,6 +171,10 @@ public class QosPacketLossExperimentRunner {
             // QUIC-подписчик мог потерять сессию между прогонами; QoS 0 на стороне
             // EMQX не буферизуется (MQUEUE_STORE_QOS0=false), так что без явного
             // ожидания готовности часть стартовых публикаций «съедается».
+            // Принудительно роняем прошлую сессию, чтобы EMQX выкинул
+            // накопленные inflight/awaiting_rel/mqueue — clean_start в CONNECT
+            // даст чистый старт; иначе при clients>=10 state копится и валит подписчика.
+            recycleSubscriber(metricsHost, metricsPort);
             awaitSubscriberReady(metricsHost, metricsPort);
             for (int i = 0; i < Config.countClients; i++) {
                 String clientId = Config.mqttQuic.clientIdPrefix + "_QosLoss_" + qos + "_" + i;
@@ -269,6 +273,23 @@ public class QosPacketLossExperimentRunner {
             System.err.println("Error fetching server count: " + e.getMessage());
         }
         return 0L;
+    }
+
+    private static void recycleSubscriber(String host, int port) {
+        try {
+            String url = "http://" + host + ":" + port + "/metrics/recycle";
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(5))
+                    .POST(HttpRequest.BodyPublishers.noBody())
+                    .build();
+            HttpResponse<Void> response = httpClient.send(request, HttpResponse.BodyHandlers.discarding());
+            if (response.statusCode() / 100 != 2) {
+                System.err.printf("[RECYCLE] %s returned %d%n", url, response.statusCode());
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to recycle subscriber: " + e.getMessage());
+        }
     }
 
     private static void awaitSubscriberReady(String host, int port) {

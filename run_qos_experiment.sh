@@ -1,13 +1,14 @@
 #!/bin/bash
 # Запуск QoS-эксперимента (QosPacketLossExperimentRunner) на удалённой машине
-# с 1 ГБ ОЗУ. Бюджет:
-#   - heap (Xmx)               192 MB — ConcurrentHashMap'ы для InFlight, метаданные
-#   - direct memory            384 MB — Netty/QUIC outbound queue под нагрузкой
+# с 2 ГБ ОЗУ (vm1674206, ~1.2 GB available при простое). Бюджет:
+#   - heap (Xmx)               256 MB — ConcurrentHashMap'ы для InFlight, метаданные
+#   - direct memory            768 MB — Netty/QUIC outbound queue при 15× publishers
 #   - metaspace + stacks + JIT ~150 MB
-#   - OS / shell / docker      остаток (~270 MB)
-# Итого JVM ~730 MB. Если процессу не хватает direct memory (UnpooledByteBuf
-# leaks или OOM:Direct), уменьшайте c/S/λ или поднимайте RAM на хосте —
-# на 1 ГБ для c=15 × S=8192 × λ=1000 принципиально не хватит буфера.
+#   - OS / shell / docker      остаток (~800 MB)
+# Итого JVM ~1.2 GB. При c=15 × S=8192 × λ=1000 direct memory пика держится
+# около 500-650 MB; запас в 100+ MB обязателен, иначе Netty pool блокируется
+# и MqttQuicClient.WRITE_TIMEOUT (5s) валит публикации с
+# "Failed while waiting for MQTT publish completion".
 #
 # Использование (на удалённом хосте):
 #   nohup ./run_qos_experiment.sh > qos_experiment.log 2>&1 &
@@ -15,14 +16,14 @@
 #
 # Опциональные переменные окружения:
 #   JAR             путь к fat-jar (default: experiment-packet-loss-qos1-1.2.jar)
-#   DIRECT_MEM      MaxDirectMemorySize (default: 384m)
-#   HEAP_MAX        -Xmx (default: 192m)
+#   DIRECT_MEM      MaxDirectMemorySize (default: 768m)
+#   HEAP_MAX        -Xmx (default: 256m)
 
 set -e
 
 JAR="${JAR:-experiment-packet-loss-qos1-1.2.jar}"
-DIRECT_MEM="${DIRECT_MEM:-384m}"
-HEAP_MAX="${HEAP_MAX:-192m}"
+DIRECT_MEM="${DIRECT_MEM:-768m}"
+HEAP_MAX="${HEAP_MAX:-256m}"
 
 if [ ! -f "$JAR" ]; then
     echo "JAR not found: $JAR" >&2

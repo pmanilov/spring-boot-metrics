@@ -31,6 +31,12 @@ public class MetricsController {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("not ready");
     }
 
+    @PostMapping("/recycle")
+    public ResponseEntity<String> recycle() {
+        subscriber.recycle();
+        return ResponseEntity.accepted().body("recycling");
+    }
+
     @PostMapping("/delete")
     public ResponseEntity<String> delete() {
         delayService.deleteAll(serverId);

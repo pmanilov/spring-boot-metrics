@@ -54,6 +54,20 @@ public class MqttQuicSubscriberConfiguration {
     public boolean isSubscribed() {
         return subscribed;
     }
+
+    /**
+     * Принудительно роняет текущую QUIC-сессию. runLoop увидит закрытие,
+     * пройдёт finally и переподключится с clean_start=true — EMQX
+     * выкинет inflight/awaiting_rel/mqueue прошлой сессии. Используется
+     * раннером эксперимента между прогонами матрицы, иначе session-state
+     * копится в одной живой сессии и под нагрузкой clients>=10 валит
+     * подписчика.
+     */
+    public void recycle() {
+        log.info("Recycling MQTT-QUIC subscriber session by request");
+        subscribed = false;
+        closeSession();
+    }
     private ExecutorService executor;
     private ExecutorService messageExecutor;
     private ScheduledExecutorService keepAliveExecutor;
